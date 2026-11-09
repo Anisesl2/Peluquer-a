@@ -22,13 +22,13 @@ SERVICIOS = {
     "Arreglo de barba": 7.00,
     "Corte + barba": 17.00,
 }
-
 HORAS = [
     f"{h:02d}:{m:02d}"
-    for h in list(range(9, 13)) + list(range(16, 20))
+    for inicio, fin in [(9, 14), (16, 20)]
+    for h in range(inicio, fin)
     for m in (0, 30)
-    if not (h == 12 and m == 30) and not (h == 19 and m == 30)
 ]
+
 
 MESES = [
     "Enero", "Febrero", "Marzo", "Abril",
