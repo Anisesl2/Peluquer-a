@@ -203,7 +203,7 @@ st.markdown(
 
 st.markdown(
     "<p style='text-align:center;color:#d4af37;'>"
-    "Reserva tu cita · BY RaulR"
+    "Reserva tu cita · Panel Profesional"
     "</p>",
     unsafe_allow_html=True
 )
