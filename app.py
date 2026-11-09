@@ -11,7 +11,7 @@ from html import escape
 # =========================================================
 
 st.set_page_config(
-    page_title="Peluquería",
+    page_title="Peluquería Profesional Panel",
     page_icon="💈",
     layout="centered"
 )
