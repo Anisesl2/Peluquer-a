@@ -197,7 +197,7 @@ hr {
 # =========================================================
 
 st.markdown(
-    "<h1 style='text-align:center;'>💈 PELUQUERÍA PROFESIONAL PANEL</h1>",
+    "<h1 style='text-align:center;'>💈 PELUQUERÍA</h1>",
     unsafe_allow_html=True
 )
 
