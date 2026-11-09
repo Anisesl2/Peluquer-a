@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from datetime import date
 
 # ==========================================
-# CONFIGURACION
+# CONFIGURACION GENERAL
 # ==========================================
 
 st.set_page_config(
@@ -32,11 +32,12 @@ HORAS = [
 
 
 # ==========================================
-# CONEXION SUPABASE
+# CONEXION CON SUPABASE
 # ==========================================
 
 @contextmanager
 def conectar():
+
     con = psycopg2.connect(
         host=st.secrets["DB_HOST"],
         port=st.secrets["DB_PORT"],
@@ -49,9 +50,11 @@ def conectar():
     try:
         yield con
         con.commit()
+
     except Exception:
         con.rollback()
         raise
+
     finally:
         con.close()
 
@@ -63,20 +66,20 @@ def conectar():
 st.markdown("""
 <style>
 
-/* FONDO GENERAL */
+/* FONDO */
 
 .stApp {
     background:
         radial-gradient(
             ellipse at top,
             #29251c 0%,
-            #151515 48%,
+            #151515 50%,
             #090909 100%
         );
     color: #f5f0e6;
 }
 
-/* ANCHO Y ESPACIADO */
+/* CONTENIDO */
 
 .main .block-container {
     max-width: 850px;
@@ -88,57 +91,26 @@ st.markdown("""
 
 h1, h2, h3 {
     color: #d6b46a !important;
-    font-family: Georgia, serif;
-    letter-spacing: 0.5px;
+    font-family: Georgia, serif !important;
 }
 
-p, label, span {
+p, label {
     color: #eee8dc;
 }
 
-/* CABECERA */
+/* TEXTO SECUNDARIO */
 
-.premium-header {
-    text-align: center;
-    padding: 30px 15px;
-    margin-bottom: 28px;
-    background: linear-gradient(
-        135deg,
-        #29251e,
-        #111111
-    );
-    border: 1px solid #a8894b;
-    border-radius: 18px;
-    box-shadow: 0 8px 25px rgba(0,0,0,0.35);
-}
-
-.premium-icon {
-    font-size: 48px;
-}
-
-.premium-title {
-    color: #dfbd75;
-    font-family: Georgia, serif;
-    font-size: 35px;
-    font-weight: bold;
-    letter-spacing: 4px;
-    margin: 8px 0;
-}
-
-.premium-subtitle {
+[data-testid="stCaptionContainer"] {
     color: #c6a96c;
-    font-size: 11px;
-    letter-spacing: 4px;
 }
 
-/* FORMULARIOS Y TARJETAS */
+/* FORMULARIOS */
 
-[data-testid="stForm"],
-[data-testid="stVerticalBlockBorderWrapper"] {
-    background: rgba(35, 35, 35, 0.85);
+[data-testid="stForm"] {
+    background: #202020;
     border: 1px solid #806b3c;
-    border-radius: 15px;
-    padding: 12px;
+    border-radius: 16px;
+    padding: 18px;
 }
 
 /* CAMPOS DE TEXTO */
@@ -170,11 +142,13 @@ p, label, span {
 
 div.stButton > button,
 div.stFormSubmitButton > button {
+
     background: linear-gradient(
         135deg,
         #d8b76d,
         #a27b35
     );
+
     color: #111111 !important;
     border: none;
     border-radius: 10px;
@@ -186,7 +160,6 @@ div.stFormSubmitButton > button {
 div.stButton > button:hover,
 div.stFormSubmitButton > button:hover {
     background: #f0d28c;
-    border: 1px solid #f0d28c;
     color: #111111 !important;
 }
 
@@ -201,7 +174,7 @@ button[role="tab"][aria-selected="true"] {
     border-bottom: 3px solid #d6b46a !important;
 }
 
-/* INDICADORES DE CAJA */
+/* INDICADORES */
 
 [data-testid="stMetric"] {
     background: #202020;
@@ -212,6 +185,15 @@ button[role="tab"][aria-selected="true"] {
 
 [data-testid="stMetricValue"] {
     color: #e3c174 !important;
+}
+
+/* TARJETAS DE CITAS */
+
+[data-testid="stVerticalBlockBorderWrapper"] {
+    background: #202020;
+    border: 1px solid #806b3c;
+    border-radius: 14px;
+    padding: 12px;
 }
 
 /* SEPARADORES */
@@ -228,12 +210,9 @@ hr {
 
 /* PIE DE PAGINA */
 
-.footer {
+.footer-text {
+    color: #b99a5b;
     text-align: center;
-    color: #a8894b;
-    font-size: 12px;
-    padding: 20px 0;
-    letter-spacing: 1px;
 }
 
 </style>
@@ -244,21 +223,18 @@ hr {
 # CABECERA PRINCIPAL
 # ==========================================
 
-st.markdown("""
-<div class="premium-header">
+st.markdown(
+    "<h1 style='text-align:center;'>💈 PELUQUERÍA</h1>",
+    unsafe_allow_html=True
+)
 
-    <div class="premium-icon">💈</div>
+st.markdown(
+    "<p style='text-align:center; color:#c6a96c; "
+    "letter-spacing:4px;'>BARBERÍA · ESTILO · PRECISIÓN</p>",
+    unsafe_allow_html=True
+)
 
-    <div class="premium-title">
-        PELUQUERÍA
-    </div>
-
-    <div class="premium-subtitle">
-        BARBERÍA · ESTILO · PRECISIÓN
-    </div>
-
-</div>
-""", unsafe_allow_html=True)
+st.divider()
 
 
 # ==========================================
@@ -281,7 +257,7 @@ if modo == "📅 Reservar cita":
     st.header("Reserva tu cita")
 
     st.write(
-        "Selecciona tu servicio, el día y la hora que prefieras."
+        "Selecciona tu servicio, día y hora."
     )
 
     with st.form("formulario_cita"):
@@ -302,28 +278,7 @@ if modo == "📅 Reservar cita":
         )
 
         st.markdown(
-            f"""
-            <div style="
-                background:#25231e;
-                border:1px solid #b08d48;
-                border-radius:12px;
-                padding:15px;
-                text-align:center;
-                margin:12px 0;
-            ">
-                <div style="color:#c6a96c;font-size:13px;">
-                    PRECIO DEL SERVICIO
-                </div>
-                <div style="
-                    color:#e3c174;
-                    font-size:30px;
-                    font-weight:bold;
-                ">
-                    {SERVICIOS[servicio]:.2f} €
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
+            f"### Precio: {SERVICIOS[servicio]:.2f} €"
         )
 
         fecha = st.date_input(
@@ -332,6 +287,8 @@ if modo == "📅 Reservar cita":
             value=date.today(),
             format="DD/MM/YYYY"
         )
+
+        # Consultar horas ocupadas
 
         with conectar() as con:
 
@@ -421,7 +378,7 @@ if modo == "📅 Reservar cita":
 
                     st.success(
                         f"¡Reserva confirmada para {cliente}! "
-                        f"Fecha: {fecha.strftime('%d/%m/%Y')} "
+                        f"El {fecha.strftime('%d/%m/%Y')} "
                         f"a las {hora}."
                     )
 
@@ -450,15 +407,9 @@ elif modo == "🔐 Acceso propietario":
 
     if not st.session_state.get("autorizado", False):
 
-        st.markdown("""
-        <div style="
-            text-align:center;
-            padding:15px;
-            color:#d6b46a;
-        ">
-            🔒 ACCESO EXCLUSIVO DEL PROPIETARIO
-        </div>
-        """, unsafe_allow_html=True)
+        st.info(
+            "🔒 Acceso exclusivo del propietario"
+        )
 
         pin = st.text_input(
             "Introduce tu PIN",
@@ -537,8 +488,6 @@ elif modo == "🔐 Acceso propietario":
                 cobradas = sum(
                     1 for c in citas if c[6]
                 )
-
-                pendientes_count = len(citas) - cobradas
 
                 col1, col2 = st.columns(2)
 
@@ -644,21 +593,21 @@ elif modo == "🔐 Acceso propietario":
             with col1:
 
                 st.metric(
-                    "💶 RECAUDACIÓN DE HOY",
+                    "RECAUDACIÓN DE HOY",
                     f"{total:.2f} €"
                 )
 
             with col2:
 
                 st.metric(
-                    "⏳ PENDIENTE DE COBRO",
+                    "PENDIENTE DE COBRO",
                     f"{pendientes:.2f} €"
                 )
 
             st.divider()
 
             st.caption(
-                "Resumen económico correspondiente a las citas de hoy."
+                "Resumen económico de las citas de hoy."
             )
 
 
@@ -666,10 +615,12 @@ elif modo == "🔐 Acceso propietario":
 # PIE DE PAGINA
 # ==========================================
 
-st.markdown("""
-<div class="footer">
-    💈 SISTEMA DE GESTIÓN · PELUQUERÍA
-    <br>
-    DISEÑO PREMIUM
-</div>
-""", unsafe_allow_html=True)
+st.divider()
+
+st.markdown(
+    "<p style='text-align:center; color:#b99a5b;'>"
+    "💈 SISTEMA DE GESTIÓN · PELUQUERÍA"
+    "<br>DISEÑO PREMIUM"
+    "</p>",
+    unsafe_allow_html=True
+)
