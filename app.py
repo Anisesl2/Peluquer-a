@@ -1,4 +1,3 @@
-
 import streamlit as st
 import psycopg2
 import calendar
@@ -16,19 +15,12 @@ st.set_page_config(
     layout="centered"
 )
 
-SERVICIOS = {
-    "Corte de caballero": 12.00,
-    "Corte infantil": 9.00,
-    "Arreglo de barba": 7.00,
-    "Corte + barba": 17.00,
-}
 HORAS = [
     f"{h:02d}:{m:02d}"
     for inicio, fin in [(9, 14), (16, 20)]
     for h in range(inicio, fin)
     for m in (0, 30)
 ]
-
 
 MESES = [
     "Enero", "Febrero", "Marzo", "Abril",
@@ -67,6 +59,23 @@ def ejecutar(sql, parametros=None):
 def euros(valor):
     valor = Decimal(str(valor or 0))
     return f"{valor:.2f} €".replace(".", ",")
+
+
+def asegurar_columna_duracion():
+    """Añade la columna duracion a productos si aún no existe."""
+    ejecutar("""
+        ALTER TABLE public.productos
+        ADD COLUMN IF NOT EXISTS duracion INTEGER NOT NULL DEFAULT 30
+    """)
+
+
+def obtener_servicios_activos():
+    return consultar("""
+        SELECT id, nombre, precio, duracion
+        FROM public.productos
+        WHERE activo = TRUE
+        ORDER BY nombre ASC
+    """)
 
 
 # =========================================================
@@ -162,8 +171,6 @@ hr {
     font-weight: bold;
 }
 
-/* MENSAJE PERSONALIZADO DE RESERVA CONFIRMADA */
-
 .mensaje-exito {
     background: #123d28;
     border: 2px solid #36c878;
@@ -258,98 +265,114 @@ if modo == "Reservar cita":
 
     if fecha_reserva == date.today():
         hora_actual = datetime.now().strftime("%H:%M")
-
         horas_disponibles = [
             hora for hora in horas_disponibles
             if hora > hora_actual
         ]
 
     if not horas_disponibles:
-
         st.warning("No quedan horas disponibles para este día.")
 
     else:
+        servicios_activos = obtener_servicios_activos()
 
-        with st.form("formulario_reserva"):
-
-            cliente = st.text_input(
-                "Nombre del cliente",
-                placeholder="Introduce tu nombre"
+        if not servicios_activos:
+            st.warning(
+                "Actualmente no hay servicios disponibles para reservar. "
+                "Contacta con la peluquería."
             )
+        else:
+            # Diccionario con nombre como clave y datos del servicio
+            servicios_dict = {
+                servicio[1]: {
+                    "id": servicio[0],
+                    "nombre": servicio[1],
+                    "precio": servicio[2],
+                    "duracion": servicio[3]
+                }
+                for servicio in servicios_activos
+            }
 
-            telefono = st.text_input(
-                "Teléfono",
-                placeholder="Introduce tu teléfono"
-            )
+            with st.form("formulario_reserva"):
 
-            servicio = st.selectbox(
-                "Servicio",
-                list(SERVICIOS.keys())
-            )
+                cliente = st.text_input(
+                    "Nombre del cliente",
+                    placeholder="Introduce tu nombre"
+                )
 
-            st.markdown(
-                f"### Precio: {euros(SERVICIOS[servicio])}"
-            )
+                telefono = st.text_input(
+                    "Teléfono",
+                    placeholder="Introduce tu teléfono"
+                )
 
-            hora_reserva = st.selectbox(
-                "Hora disponible",
-                horas_disponibles
-            )
+                servicio_nombre = st.selectbox(
+                    "Servicio",
+                    list(servicios_dict.keys())
+                )
 
-            reservar = st.form_submit_button(
-                "Confirmar reserva"
-            )
+                servicio_seleccionado = servicios_dict[servicio_nombre]
 
-        if reservar:
+                st.markdown(
+                    f"### Precio: {euros(servicio_seleccionado['precio'])}"
+                )
+                st.caption(
+                    f"Duración aproximada: "
+                    f"{servicio_seleccionado['duracion']} minutos"
+                )
 
-            if not cliente.strip():
+                hora_reserva = st.selectbox(
+                    "Hora disponible",
+                    horas_disponibles
+                )
 
-                st.error("Introduce el nombre del cliente.")
+                reservar = st.form_submit_button(
+                    "Confirmar reserva"
+                )
 
-            elif not telefono.strip():
-
-                st.error("Introduce el teléfono.")
-
-            else:
-
-                try:
-
-                    ejecutar(
-                        """
-                        INSERT INTO public.citas
-                        (cliente, telefono, servicio, precio, fecha, hora, pagada)
-                        VALUES (%s, %s, %s, %s, %s, %s, FALSE)
-                        """,
-                        (
-                            cliente.strip(),
-                            telefono.strip(),
-                            servicio,
-                            SERVICIOS[servicio],
-                            fecha_reserva,
-                            hora_reserva,
+            if reservar:
+                if not cliente.strip():
+                    st.error("Introduce el nombre del cliente.")
+                elif not telefono.strip():
+                    st.error("Introduce el teléfono.")
+                else:
+                    try:
+                        ejecutar(
+                            """
+                            INSERT INTO public.citas
+                            (cliente, telefono, servicio, precio, fecha, hora, pagada)
+                            VALUES (%s, %s, %s, %s, %s, %s, FALSE)
+                            """,
+                            (
+                                cliente.strip(),
+                                telefono.strip(),
+                                servicio_nombre,
+                                servicio_seleccionado["precio"],
+                                fecha_reserva,
+                                hora_reserva,
+                            )
                         )
-                    )
 
-                    st.markdown(
-                        f"""
-                        <div class="mensaje-exito">
-                            <h3>✅ ¡CITA CONFIRMADA!</h3>
-                            <p>Tu reserva se ha realizado correctamente.</p>
-                            <p>👤 Cliente: {escape(cliente.strip())}</p>
-                            <p>📅 Fecha: {fecha_reserva.strftime('%d/%m/%Y')}</p>
-                            <p>🕒 Hora: {hora_reserva}</p>
-                            <p>✂️ Servicio: {escape(servicio)}</p>
-                            <p>💶 Precio: {euros(SERVICIOS[servicio])}</p>
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
+                        st.markdown(
+                            f"""
+                            <div class="mensaje-exito">
+                                <h3>✅ ¡CITA CONFIRMADA!</h3>
+                                <p>Tu reserva se ha realizado correctamente.</p>
+                                <p>👤 Cliente: {escape(cliente.strip())}</p>
+                                <p>📅 Fecha: {fecha_reserva.strftime('%d/%m/%Y')}</p>
+                                <p>🕒 Hora: {hora_reserva}</p>
+                                <p>✂️ Servicio: {escape(servicio_nombre)}</p>
+                                <p>💶 Precio: {euros(servicio_seleccionado['precio'])}</p>
+                                <p>⏱️ Duración: {servicio_seleccionado['duracion']} minutos</p>
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
 
-                except Exception:
-                    st.error(
-                        "No se ha podido realizar la reserva. "
-                        "Puede que esa hora ya esté ocupada."
-                    )
+                    except Exception:
+                        st.error(
+                            "No se ha podido realizar la reserva. "
+                            "Puede que esa hora ya esté ocupada."
+                        )
 
 
 # =========================================================
@@ -379,11 +402,20 @@ elif modo == "Panel propietario":
             if pin == pin_correcto:
                 st.session_state.propietario_autenticado = True
                 st.rerun()
-
             else:
                 st.error("PIN incorrecto.")
 
     else:
+
+        # Garantizamos la columna de duración en la tabla de productos.
+        try:
+            asegurar_columna_duracion()
+        except Exception:
+            st.error(
+                "No se ha podido comprobar la columna de duración en Supabase. "
+                "Revisa los permisos de la base de datos."
+            )
+            st.stop()
 
         if st.button("Cerrar sesión del propietario"):
             st.session_state.propietario_autenticado = False
@@ -392,7 +424,7 @@ elif modo == "Panel propietario":
         pestañas = st.tabs([
             "📅 Citas",
             "💰 Caja",
-            "📦 Productos"
+            "✂️ Servicios y cortes"
         ])
 
         # =================================================
@@ -422,15 +454,10 @@ elif modo == "Panel propietario":
             )
 
             total_citas = len(citas_dia)
-
-            citas_cobradas = sum(
-                1 for cita in citas_dia if cita[6]
-            )
-
+            citas_cobradas = sum(1 for cita in citas_dia if cita[6])
             citas_pendientes = total_citas - citas_cobradas
 
             col1, col2, col3 = st.columns(3)
-
             col1.metric("Citas", total_citas)
             col2.metric("Cobradas", citas_cobradas)
             col3.metric("Pendientes", citas_pendientes)
@@ -438,13 +465,9 @@ elif modo == "Panel propietario":
             st.divider()
 
             if not citas_dia:
-
                 st.info("No hay citas para este día.")
-
             else:
-
                 for cita in citas_dia:
-
                     (
                         cita_id,
                         cliente_cita,
@@ -462,24 +485,20 @@ elif modo == "Panel propietario":
                     )
 
                     with st.container(border=True):
-
                         st.markdown(
                             f"### 🕒 {str(hora_cita)[:5]} · "
-                            f"{cliente_cita}"
+                            f"{escape(str(cliente_cita))}"
                         )
-
                         st.write(f"📞 {telefono_cita}")
                         st.write(f"✂️ {servicio_cita}")
                         st.write(f"💶 {euros(precio_cita)}")
                         st.write(estado)
 
                         if not pagada_cita:
-
                             if st.button(
                                 f"💰 Cobrar cita de {cliente_cita}",
                                 key=f"cobrar_cita_{cita_id}"
                             ):
-
                                 ejecutar(
                                     """
                                     UPDATE public.citas
@@ -488,24 +507,17 @@ elif modo == "Panel propietario":
                                     """,
                                     (cita_id,)
                                 )
-
                                 st.success(
                                     f"Cita de {cliente_cita} cobrada."
                                 )
-
                                 st.rerun()
-
-
-        # =================================================
+                                        # =================================================
         # PESTAÑA CAJA
         # =================================================
 
         with pestañas[1]:
 
             st.markdown("## 💰 Caja")
-
-            # CAJA DE HOY
-
             st.markdown("### 📍 Caja de hoy")
 
             caja_hoy = consultar(
@@ -527,7 +539,6 @@ elif modo == "Panel propietario":
             total_citas_hoy = caja_hoy[3]
 
             col1, col2 = st.columns(2)
-
             col1.metric("Cobrado hoy", euros(cobrado_hoy))
             col2.metric("Pendiente hoy", euros(pendiente_hoy))
 
@@ -537,15 +548,11 @@ elif modo == "Panel propietario":
             )
 
             st.divider()
-
-            # SELECTOR DE MES Y AÑO
-
             st.markdown("### 📆 Consulta de caja mensual")
 
             col_mes, col_anio = st.columns(2)
 
             with col_mes:
-
                 mes_seleccionado = st.selectbox(
                     "Selecciona el mes",
                     MESES,
@@ -554,7 +561,6 @@ elif modo == "Panel propietario":
                 )
 
             with col_anio:
-
                 anios_disponibles = list(
                     range(date.today().year, date.today().year - 6, -1)
                 )
@@ -567,30 +573,12 @@ elif modo == "Panel propietario":
                 )
 
             numero_mes = MESES.index(mes_seleccionado) + 1
-
-            fecha_inicio = date(
-                anio_seleccionado,
-                numero_mes,
-                1
-            )
+            fecha_inicio = date(anio_seleccionado, numero_mes, 1)
 
             if numero_mes == 12:
-
-                fecha_fin = date(
-                    anio_seleccionado + 1,
-                    1,
-                    1
-                )
-
+                fecha_fin = date(anio_seleccionado + 1, 1, 1)
             else:
-
-                fecha_fin = date(
-                    anio_seleccionado,
-                    numero_mes + 1,
-                    1
-                )
-
-            # CONSULTA DE COBROS DEL MES
+                fecha_fin = date(anio_seleccionado, numero_mes + 1, 1)
 
             citas_mes = consultar(
                 """
@@ -624,15 +612,8 @@ elif modo == "Panel propietario":
                 Decimal("0.00")
             )
 
-            numero_cobradas_mes = sum(
-                1 for cita in citas_mes if cita[7]
-            )
-
-            numero_pendientes_mes = sum(
-                1 for cita in citas_mes if not cita[7]
-            )
-
-            # RESUMEN MENSUAL
+            numero_cobradas_mes = sum(1 for cita in citas_mes if cita[7])
+            numero_pendientes_mes = sum(1 for cita in citas_mes if not cita[7])
 
             st.markdown(
                 f"### Resumen de {mes_seleccionado} "
@@ -640,19 +621,10 @@ elif modo == "Panel propietario":
             )
 
             col1, col2 = st.columns(2)
-
-            col1.metric(
-                "💶 Total cobrado del mes",
-                euros(total_cobrado_mes)
-            )
-
-            col2.metric(
-                "🟡 Pendiente de cobrar",
-                euros(total_pendiente_mes)
-            )
+            col1.metric("💶 Total cobrado del mes", euros(total_cobrado_mes))
+            col2.metric("🟡 Pendiente de cobrar", euros(total_pendiente_mes))
 
             col3, col4 = st.columns(2)
-
             col3.metric("✅ Citas cobradas", numero_cobradas_mes)
             col4.metric("📅 Total de citas", total_citas_mes)
 
@@ -661,23 +633,12 @@ elif modo == "Panel propietario":
             )
 
             st.divider()
-
-            # HISTÓRICO MENSUAL
-
-            st.markdown(
-                f"### 📋 Histórico de {mes_seleccionado}"
-            )
+            st.markdown(f"### 📋 Histórico de {mes_seleccionado}")
 
             if not citas_mes:
-
-                st.info(
-                    "No hay citas registradas durante este mes."
-                )
-
-            else:
-
+                st.info("No hay citas registradas durante este mes.")
+                            else:
                 for cita in citas_mes:
-
                     (
                         cita_id,
                         cliente_cita,
@@ -705,26 +666,21 @@ elif modo == "Panel propietario":
                             <h4 style="color:#d4af37;">
                                 {fecha_texto} · {hora_texto}
                             </h4>
-                            <p><b>Cliente:</b> {cliente_cita}</p>
-                            <p><b>Teléfono:</b> {telefono_cita}</p>
-                            <p><b>Servicio:</b> {servicio_cita}</p>
+                            <p><b>Cliente:</b> {escape(str(cliente_cita))}</p>
+                            <p><b>Teléfono:</b> {escape(str(telefono_cita))}</p>
+                            <p><b>Servicio:</b> {escape(str(servicio_cita))}</p>
                             <p><b>Importe:</b> {euros(precio_cita)}</p>
-                            <p class="{clase_estado}">
-                                {estado_texto}
-                            </p>
+                            <p class="{clase_estado}">{estado_texto}</p>
                         </div>
                         """,
                         unsafe_allow_html=True
                     )
 
                     if not pagada_cita:
-
                         if st.button(
-                            f"💰 Cobrar {cliente_cita} "
-                            f"({fecha_texto})",
+                            f"💰 Cobrar {cliente_cita} ({fecha_texto})",
                             key=f"cobrar_mes_{cita_id}"
                         ):
-
                             ejecutar(
                                 """
                                 UPDATE public.citas
@@ -733,15 +689,10 @@ elif modo == "Panel propietario":
                                 """,
                                 (cita_id,)
                             )
-
-                            st.success(
-                                f"Cita de {cliente_cita} cobrada."
-                            )
-
+                            st.success(f"Cita de {cliente_cita} cobrada.")
                             st.rerun()
 
             st.divider()
-
             st.markdown(
                 "<p style='text-align:center;color:#d4af37;'>"
                 "💈 Gestión de caja · Peluquería"
@@ -749,156 +700,157 @@ elif modo == "Panel propietario":
                 unsafe_allow_html=True
             )
 
-
         # =================================================
-        # PESTAÑA PRODUCTOS
+        # PESTAÑA SERVICIOS Y CORTES
         # =================================================
 
         with pestañas[2]:
 
-            st.markdown("## 📦 Gestión de productos")
-
+            st.markdown("## ✂️ Gestión de servicios y cortes")
             st.caption(
-                "Añade productos y administra sus precios."
+                "Aquí puedes administrar los cortes, tratamientos, "
+                "precios y duración que aparecen en las reservas de los clientes."
             )
 
-            # AÑADIR PRODUCTO
+            # ---------------------------------------------
+            # AÑADIR SERVICIO
+            # ---------------------------------------------
 
-            st.markdown("### ➕ Añadir producto")
+            st.markdown("### ➕ Añadir nuevo servicio")
 
-            with st.form("formulario_nuevo_producto"):
+            with st.form("formulario_nuevo_servicio"):
 
                 nuevo_nombre = st.text_input(
-                    "Nombre del producto",
-                    placeholder="Ej. Champú profesional"
+                    "Nombre del corte o servicio",
+                    placeholder="Ej. Corte degradado"
                 )
 
                 nuevo_precio = st.number_input(
                     "Precio (€)",
                     min_value=0.0,
-                    value=0.0,
+                    value=12.0,
                     step=0.50,
                     format="%.2f"
                 )
 
-                guardar_producto = st.form_submit_button(
-                    "Guardar producto"
+                nueva_duracion = st.number_input(
+                    "Duración (minutos)",
+                    min_value=5,
+                    max_value=240,
+                    value=30,
+                    step=5
                 )
 
-            if guardar_producto:
+                guardar_servicio = st.form_submit_button(
+                    "Añadir servicio al catálogo"
+                )
 
+            if guardar_servicio:
                 if not nuevo_nombre.strip():
-
-                    st.error("Introduce el nombre del producto.")
-
+                    st.error("Introduce el nombre del servicio.")
                 else:
-
                     ejecutar(
                         """
                         INSERT INTO public.productos
-                        (nombre, precio, activo)
-                        VALUES (%s, %s, TRUE)
+                        (nombre, precio, activo, duracion)
+                        VALUES (%s, %s, TRUE, %s)
                         """,
                         (
                             nuevo_nombre.strip(),
-                            Decimal(str(nuevo_precio))
+                            Decimal(str(nuevo_precio)),
+                            int(nueva_duracion)
                         )
                     )
-
                     st.success(
-                        f"Producto {nuevo_nombre} añadido correctamente."
+                        f"Servicio «{nuevo_nombre.strip()}» añadido. "
+                        "Ya estará disponible en las reservas."
                     )
-
                     st.rerun()
 
             st.divider()
 
-            # CONSULTAR PRODUCTOS
+            # ---------------------------------------------
+            # LISTADO DEL CATÁLOGO
+            # ---------------------------------------------
 
-            st.markdown("### 📋 Productos registrados")
+            st.markdown("### 📋 Catálogo de servicios")
 
-            productos = consultar(
+            servicios = consultar(
                 """
-                SELECT id, nombre, precio, activo
+                SELECT id, nombre, precio, activo, duracion
                 FROM public.productos
                 ORDER BY nombre ASC
                 """
             )
 
-            if not productos:
-
-                st.info(
-                    "Todavía no tienes productos registrados."
-                )
-
+            if not servicios:
+                st.info("Todavía no hay servicios registrados.")
             else:
-
-                activos = sum(
-                    1 for producto in productos if producto[3]
-                )
+                total_servicios = len(servicios)
+                servicios_activos = sum(1 for s in servicios if s[3])
 
                 col1, col2 = st.columns(2)
+                col1.metric("Servicios registrados", total_servicios)
+                col2.metric("Servicios visibles en reservas", servicios_activos)
 
-                col1.metric("Productos registrados", len(productos))
-                col2.metric("Productos activos", activos)
-
-                for producto in productos:
-
-                    producto_id = producto[0]
-                    nombre_producto = producto[1]
-                    precio_producto = producto[2]
-                    activo_producto = producto[3]
+                for servicio in servicios:
+                    (
+                        servicio_id,
+                        nombre_servicio,
+                        precio_servicio,
+                        activo_servicio,
+                        duracion_servicio
+                    ) = servicio
 
                     with st.container(border=True):
-
                         col_nombre, col_estado = st.columns([3, 1])
 
                         with col_nombre:
+                            st.markdown(f"### ✂️ {escape(str(nombre_servicio))}")
                             st.markdown(
-                                f"### {nombre_producto}"
+                                f"**Precio: {euros(precio_servicio)}**"
+                            )
+                            st.caption(
+                                f"Duración: {duracion_servicio} minutos"
                             )
 
                         with col_estado:
-
-                            if activo_producto:
+                            if activo_servicio:
                                 st.success("Activo")
                             else:
                                 st.warning("Inactivo")
 
-                        st.markdown(
-                            f"**Precio: {euros(precio_producto)}**"
-                        )
-
                 st.divider()
 
-                # MODIFICAR PRODUCTO
+                # -----------------------------------------
+                # EDITAR SERVICIO
+                # -----------------------------------------
 
-                st.markdown("### ✏️ Modificar producto")
+                st.markdown("### ✏️ Modificar corte o servicio")
 
-                opciones_productos = {
-                    f"{p[1]} — {euros(p[2])} (ID {p[0]})": p
-                    for p in productos
+                opciones_servicios = {
+                    f"{s[1]} — {euros(s[2])} · {s[4]} min (ID {s[0]})": s
+                    for s in servicios
                 }
 
-                producto_seleccionado = st.selectbox(
-                    "Selecciona el producto",
-                    list(opciones_productos.keys()),
-                    key="producto_editar"
+                servicio_a_editar_label = st.selectbox(
+                    "Selecciona el servicio que quieres modificar",
+                    list(opciones_servicios.keys()),
+                    key="servicio_editar"
                 )
 
-                producto_actual = opciones_productos[
-                    producto_seleccionado
-                ]
+                servicio_actual = opciones_servicios[servicio_a_editar_label]
 
-                id_editar = producto_actual[0]
-                nombre_actual = producto_actual[1]
-                precio_actual = producto_actual[2]
-                activo_actual = producto_actual[3]
+                id_editar = servicio_actual[0]
+                nombre_actual = servicio_actual[1]
+                precio_actual = servicio_actual[2]
+                activo_actual = servicio_actual[3]
+                duracion_actual = servicio_actual[4]
 
-                with st.form("formulario_editar_producto"):
+                with st.form("formulario_editar_servicio"):
 
                     nombre_editado = st.text_input(
-                        "Nombre",
+                        "Nombre del servicio",
                         value=nombre_actual
                     )
 
@@ -910,65 +862,74 @@ elif modo == "Panel propietario":
                         format="%.2f"
                     )
 
+                    duracion_editada = st.number_input(
+                        "Duración (minutos)",
+                        min_value=5,
+                        max_value=240,
+                        value=int(duracion_actual),
+                        step=5
+                    )
+
                     activo_editado = st.checkbox(
-                        "Producto activo",
+                        "Mostrar este servicio en las reservas",
                         value=activo_actual
                     )
 
                     guardar_cambios = st.form_submit_button(
-                        "Guardar cambios"
+                        "Guardar cambios del servicio"
                     )
 
                 if guardar_cambios:
-
                     if not nombre_editado.strip():
-
-                        st.error(
-                            "El nombre del producto no puede estar vacío."
-                        )
-
+                        st.error("El nombre del servicio no puede estar vacío.")
                     else:
-
                         ejecutar(
                             """
                             UPDATE public.productos
                             SET nombre = %s,
                                 precio = %s,
+                                duracion = %s,
                                 activo = %s
                             WHERE id = %s
                             """,
                             (
                                 nombre_editado.strip(),
                                 Decimal(str(precio_editado)),
+                                int(duracion_editada),
                                 activo_editado,
                                 id_editar
                             )
                         )
 
                         st.success(
-                            "Producto actualizado correctamente."
+                            "Servicio actualizado. "
+                            "El nuevo precio aparecerá en próximas reservas."
                         )
-
                         st.rerun()
 
                 st.divider()
 
-                # ELIMINAR PRODUCTO
+                # -----------------------------------------
+                # ELIMINAR SERVICIO
+                # -----------------------------------------
 
-                st.markdown("### 🗑️ Eliminar producto")
+                st.markdown("### 🗑️ Eliminar servicio")
+
+                st.warning(
+                    "Eliminar un servicio lo quitará del catálogo. "
+                    "Las citas ya registradas conservarán sus datos."
+                )
 
                 confirmar_eliminacion = st.checkbox(
-                    f"Confirmo que quiero eliminar {nombre_actual}",
-                    key=f"confirmar_borrar_{id_editar}"
+                    f"Confirmo que quiero eliminar «{nombre_actual}»",
+                    key=f"confirmar_borrar_servicio_{id_editar}"
                 )
 
                 if st.button(
-                    "Eliminar producto seleccionado",
-                    key="boton_eliminar_producto"
+                    "Eliminar servicio seleccionado",
+                    key="boton_eliminar_servicio"
                 ):
-
                     if confirmar_eliminacion:
-
                         ejecutar(
                             """
                             DELETE FROM public.productos
@@ -976,12 +937,11 @@ elif modo == "Panel propietario":
                             """,
                             (id_editar,)
                         )
-
-                        st.success("Producto eliminado correctamente.")
+                        st.success("Servicio eliminado del catálogo.")
                         st.rerun()
-
                     else:
-
                         st.warning(
                             "Marca la casilla de confirmación antes de eliminar."
                         )
+                
+                                
