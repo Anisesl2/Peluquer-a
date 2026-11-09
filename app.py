@@ -4,6 +4,7 @@ import psycopg2
 import calendar
 from datetime import date, time, datetime
 from decimal import Decimal
+from html import escape
 
 # =========================================================
 # CONFIGURACIÓN
@@ -160,6 +161,33 @@ hr {
     color: #ffcc66;
     font-weight: bold;
 }
+
+/* MENSAJE PERSONALIZADO DE RESERVA CONFIRMADA */
+
+.mensaje-exito {
+    background: #123d28;
+    border: 2px solid #36c878;
+    border-radius: 14px;
+    padding: 20px;
+    margin-top: 20px;
+    margin-bottom: 20px;
+    text-align: center;
+    box-shadow: 0 0 14px rgba(54, 200, 120, 0.20);
+}
+
+.mensaje-exito h3 {
+    color: #75f0a8 !important;
+    margin-top: 0;
+    margin-bottom: 12px;
+    font-size: 22px;
+}
+
+.mensaje-exito p {
+    color: #ffffff !important;
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -237,6 +265,7 @@ if modo == "Reservar cita":
         ]
 
     if not horas_disponibles:
+
         st.warning("No quedan horas disponibles para este día.")
 
     else:
@@ -274,13 +303,17 @@ if modo == "Reservar cita":
         if reservar:
 
             if not cliente.strip():
+
                 st.error("Introduce el nombre del cliente.")
 
             elif not telefono.strip():
+
                 st.error("Introduce el teléfono.")
 
             else:
+
                 try:
+
                     ejecutar(
                         """
                         INSERT INTO public.citas
@@ -297,10 +330,19 @@ if modo == "Reservar cita":
                         )
                     )
 
-                    st.success(
-                        f"¡Reserva confirmada para {cliente} "
-                        f"el {fecha_reserva.strftime('%d/%m/%Y')} "
-                        f"a las {hora_reserva}!"
+                    st.markdown(
+                        f"""
+                        <div class="mensaje-exito">
+                            <h3>✅ ¡CITA CONFIRMADA!</h3>
+                            <p>Tu reserva se ha realizado correctamente.</p>
+                            <p>👤 Cliente: {escape(cliente.strip())}</p>
+                            <p>📅 Fecha: {fecha_reserva.strftime('%d/%m/%Y')}</p>
+                            <p>🕒 Hora: {hora_reserva}</p>
+                            <p>✂️ Servicio: {escape(servicio)}</p>
+                            <p>💶 Precio: {euros(SERVICIOS[servicio])}</p>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
                     )
 
                 except Exception:
@@ -396,6 +438,7 @@ elif modo == "Panel propietario":
             st.divider()
 
             if not citas_dia:
+
                 st.info("No hay citas para este día.")
 
             else:
@@ -532,12 +575,15 @@ elif modo == "Panel propietario":
             )
 
             if numero_mes == 12:
+
                 fecha_fin = date(
                     anio_seleccionado + 1,
                     1,
                     1
                 )
+
             else:
+
                 fecha_fin = date(
                     anio_seleccionado,
                     numero_mes + 1,
@@ -716,9 +762,7 @@ elif modo == "Panel propietario":
                 "Añade productos y administra sus precios."
             )
 
-            # ---------------------------------------------
             # AÑADIR PRODUCTO
-            # ---------------------------------------------
 
             st.markdown("### ➕ Añadir producto")
 
@@ -744,9 +788,11 @@ elif modo == "Panel propietario":
             if guardar_producto:
 
                 if not nuevo_nombre.strip():
+
                     st.error("Introduce el nombre del producto.")
 
                 else:
+
                     ejecutar(
                         """
                         INSERT INTO public.productos
@@ -767,9 +813,7 @@ elif modo == "Panel propietario":
 
             st.divider()
 
-            # ---------------------------------------------
             # CONSULTAR PRODUCTOS
-            # ---------------------------------------------
 
             st.markdown("### 📋 Productos registrados")
 
@@ -815,6 +859,7 @@ elif modo == "Panel propietario":
                             )
 
                         with col_estado:
+
                             if activo_producto:
                                 st.success("Activo")
                             else:
@@ -826,14 +871,12 @@ elif modo == "Panel propietario":
 
                 st.divider()
 
-                # -----------------------------------------
                 # MODIFICAR PRODUCTO
-                # -----------------------------------------
 
                 st.markdown("### ✏️ Modificar producto")
 
                 opciones_productos = {
-                    f"{p[1]} — {euros(p[2])}": p
+                    f"{p[1]} — {euros(p[2])} (ID {p[0]})": p
                     for p in productos
                 }
 
@@ -910,15 +953,12 @@ elif modo == "Panel propietario":
 
                 st.divider()
 
-                # -----------------------------------------
                 # ELIMINAR PRODUCTO
-                # -----------------------------------------
 
                 st.markdown("### 🗑️ Eliminar producto")
 
                 confirmar_eliminacion = st.checkbox(
-                    f"Confirmo que quiero eliminar "
-                    f"{nombre_actual}",
+                    f"Confirmo que quiero eliminar {nombre_actual}",
                     key=f"confirmar_borrar_{id_editar}"
                 )
 
