@@ -11,7 +11,7 @@ from html import escape
 # =========================================================
 
 st.set_page_config(
-    page_title="Peluquería Profesional Panel",
+    page_title="Peluquería",
     page_icon="💈",
     layout="centered"
 )
@@ -203,7 +203,7 @@ st.markdown(
 
 st.markdown(
     "<p style='text-align:center;color:#d4af37;'>"
-    "Reserva tu cita · Panel Profesional BY Raul.R"
+    "Reserva tu cita · BY RaulR"
     "</p>",
     unsafe_allow_html=True
 )
