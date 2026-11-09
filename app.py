@@ -1,227 +1,172 @@
 
 import streamlit as st
 import psycopg2
-from contextlib import contextmanager
-from datetime import date
+import calendar
+from datetime import date, time, datetime
+from decimal import Decimal
 
-# ==========================================
-# CONFIGURACION GENERAL
-# ==========================================
+# =========================================================
+# CONFIGURACIÓN
+# =========================================================
 
 st.set_page_config(
-    page_title="Peluquería Premium",
+    page_title="Peluquería",
     page_icon="💈",
     layout="centered"
 )
-
-PIN = st.secrets["OWNER_PIN"]
 
 SERVICIOS = {
     "Corte de caballero": 12.00,
     "Corte infantil": 9.00,
     "Arreglo de barba": 7.00,
-    "Corte + barba": 17.00
+    "Corte + barba": 17.00,
 }
 
 HORAS = [
-    "09:00", "09:30", "10:00", "10:30",
-    "11:00", "11:30", "12:00", "12:30",
-    "16:00", "16:30", "17:00", "17:30",
-    "18:00", "18:30", "19:00", "19:30"
+    f"{h:02d}:{m:02d}"
+    for h in list(range(9, 13)) + list(range(16, 20))
+    for m in (0, 30)
+    if not (h == 12 and m == 30) and not (h == 19 and m == 30)
 ]
 
+MESES = [
+    "Enero", "Febrero", "Marzo", "Abril",
+    "Mayo", "Junio", "Julio", "Agosto",
+    "Septiembre", "Octubre", "Noviembre", "Diciembre"
+]
 
-# ==========================================
-# CONEXION CON SUPABASE
-# ==========================================
+# =========================================================
+# CONEXIÓN A SUPABASE
+# =========================================================
 
-@contextmanager
-def conectar():
-
-    con = psycopg2.connect(
+def conectar_db():
+    return psycopg2.connect(
         host=st.secrets["DB_HOST"],
         port=st.secrets["DB_PORT"],
-        database=st.secrets["DB_NAME"],
+        dbname=st.secrets["DB_NAME"],
         user=st.secrets["DB_USER"],
         password=st.secrets["DB_PASSWORD"],
         sslmode="require"
     )
 
-    try:
-        yield con
-        con.commit()
 
-    except Exception:
-        con.rollback()
-        raise
-
-    finally:
-        con.close()
+def consultar(sql, parametros=None):
+    with conectar_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, parametros or ())
+            return cur.fetchall()
 
 
-# ==========================================
-# DISEÑO NEGRO Y DORADO
-# ==========================================
+def ejecutar(sql, parametros=None):
+    with conectar_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, parametros or ())
+
+
+def euros(valor):
+    valor = Decimal(str(valor or 0))
+    return f"{valor:.2f} €".replace(".", ",")
+
+
+# =========================================================
+# DISEÑO
+# =========================================================
 
 st.markdown("""
 <style>
-
-/* FONDO */
-
 .stApp {
-    background:
-        radial-gradient(
-            ellipse at top,
-            #29251c 0%,
-            #151515 50%,
-            #090909 100%
-        );
-    color: #f5f0e6;
+    background: radial-gradient(circle at top, #252525 0%, #080808 55%);
+    color: #f5f5f5;
 }
 
-/* CONTENIDO */
-
-.main .block-container {
+.block-container {
     max-width: 850px;
     padding-top: 2rem;
     padding-bottom: 3rem;
 }
 
-/* TITULOS */
-
 h1, h2, h3 {
-    color: #d6b46a !important;
-    font-family: Georgia, serif !important;
+    color: #d4af37 !important;
 }
 
-p, label {
-    color: #eee8dc;
+p, label, .stMarkdown, .stCaption {
+    color: #f0f0f0;
 }
 
-/* TEXTO SECUNDARIO */
-
-[data-testid="stCaptionContainer"] {
-    color: #c6a96c;
-}
-
-/* FORMULARIOS */
-
-[data-testid="stForm"] {
-    background: #202020;
-    border: 1px solid #806b3c;
-    border-radius: 16px;
-    padding: 18px;
-}
-
-/* CAMPOS DE TEXTO */
-
-[data-testid="stTextInput"] input {
-    background-color: #202020;
-    color: white;
-    border: 1px solid #806b3c;
-    border-radius: 9px;
-}
-
-/* SELECTORES */
-
-[data-testid="stSelectbox"] div[data-baseweb="select"] > div {
-    background-color: #202020;
-    border-color: #806b3c;
-    color: white;
-}
-
-/* FECHAS */
-
-[data-testid="stDateInput"] input {
-    background-color: #202020;
-    color: white;
-    border: 1px solid #806b3c;
-}
-
-/* BOTONES */
-
-div.stButton > button,
-div.stFormSubmitButton > button {
-
-    background: linear-gradient(
-        135deg,
-        #d8b76d,
-        #a27b35
-    );
-
-    color: #111111 !important;
-    border: none;
-    border-radius: 10px;
-    min-height: 46px;
-    font-weight: 800;
-    transition: 0.2s;
-}
-
-div.stButton > button:hover,
-div.stFormSubmitButton > button:hover {
-    background: #f0d28c;
-    color: #111111 !important;
-}
-
-/* PESTAÑAS */
-
-button[role="tab"] {
-    color: #d6b46a !important;
-    font-weight: bold;
-}
-
-button[role="tab"][aria-selected="true"] {
-    border-bottom: 3px solid #d6b46a !important;
-}
-
-/* INDICADORES */
-
-[data-testid="stMetric"] {
-    background: #202020;
-    border: 1px solid #806b3c;
-    border-radius: 13px;
+div[data-testid="stMetric"] {
+    background: #171717;
+    border: 1px solid #b8952e;
+    border-radius: 12px;
     padding: 15px;
 }
 
-[data-testid="stMetricValue"] {
-    color: #e3c174 !important;
+div[data-testid="stMetricLabel"] {
+    color: #d4af37 !important;
 }
 
-/* TARJETAS DE CITAS */
-
-[data-testid="stVerticalBlockBorderWrapper"] {
-    background: #202020;
-    border: 1px solid #806b3c;
-    border-radius: 14px;
-    padding: 12px;
+div[data-testid="stMetricValue"] {
+    color: #ffffff !important;
 }
 
-/* SEPARADORES */
+.stButton button,
+.stFormSubmitButton button {
+    background: linear-gradient(135deg, #d4af37, #a88720);
+    color: #080808;
+    border: none;
+    border-radius: 10px;
+    min-height: 45px;
+    font-weight: bold;
+    width: 100%;
+}
+
+.stButton button:hover,
+.stFormSubmitButton button:hover {
+    background: #f0cf60;
+    color: #000000;
+}
+
+input, textarea {
+    background-color: #1b1b1b !important;
+    color: white !important;
+}
+
+div[data-baseweb="select"] {
+    background-color: #1b1b1b;
+}
+
+div[data-testid="stDateInput"] input {
+    background-color: #1b1b1b;
+    color: white;
+}
 
 hr {
-    border-color: #806b3c;
+    border-color: #a88720;
 }
 
-/* MENSAJES */
-
-[data-testid="stAlert"] {
-    border-radius: 10px;
+.cita-card {
+    background: #171717;
+    border: 1px solid #b8952e;
+    border-radius: 12px;
+    padding: 15px;
+    margin-bottom: 12px;
 }
 
-/* PIE DE PAGINA */
-
-.footer-text {
-    color: #b99a5b;
-    text-align: center;
+.estado-pagado {
+    color: #5bd18b;
+    font-weight: bold;
 }
 
+.estado-pendiente {
+    color: #ffcc66;
+    font-weight: bold;
+}
 </style>
 """, unsafe_allow_html=True)
 
 
-# ==========================================
-# CABECERA PRINCIPAL
-# ==========================================
+# =========================================================
+# CABECERA
+# =========================================================
 
 st.markdown(
     "<h1 style='text-align:center;'>💈 PELUQUERÍA</h1>",
@@ -229,398 +174,562 @@ st.markdown(
 )
 
 st.markdown(
-    "<p style='text-align:center; color:#c6a96c; "
-    "letter-spacing:4px;'>BARBERÍA · ESTILO · PRECISIÓN</p>",
+    "<p style='text-align:center;color:#d4af37;'>"
+    "Reserva tu cita · Gestión de peluquería"
+    "</p>",
     unsafe_allow_html=True
 )
 
 st.divider()
 
 
-# ==========================================
-# MENU PRINCIPAL
-# ==========================================
+# =========================================================
+# NAVEGACIÓN
+# =========================================================
 
 modo = st.radio(
-    "Selecciona el acceso",
-    ["📅 Reservar cita", "🔐 Acceso propietario"],
+    "Selecciona una opción",
+    ["Reservar cita", "Panel propietario"],
     horizontal=True
 )
 
 
-# ==========================================
+# =========================================================
 # RESERVAR CITA
-# ==========================================
+# =========================================================
 
-if modo == "📅 Reservar cita":
+if modo == "Reservar cita":
 
-    st.header("Reserva tu cita")
+    st.markdown("## 📅 Reserva tu cita")
 
-    st.write(
-        "Selecciona tu servicio, día y hora."
+    fecha_reserva = st.date_input(
+        "Selecciona el día",
+        value=date.today(),
+        min_value=date.today(),
+        format="DD/MM/YYYY"
     )
 
-    with st.form("formulario_cita"):
+    # Consultar las horas ya ocupadas para ese día
+    citas_ocupadas = consultar(
+        """
+        SELECT hora
+        FROM public.citas
+        WHERE fecha = %s
+        """,
+        (fecha_reserva,)
+    )
 
-        cliente = st.text_input(
-            "Nombre y apellidos",
-            placeholder="Escribe tu nombre"
-        )
+    horas_ocupadas = [
+        str(fila[0])[:5]
+        for fila in citas_ocupadas
+    ]
 
-        telefono = st.text_input(
-            "Teléfono",
-            placeholder="Tu número de teléfono"
-        )
+    horas_disponibles = [
+        hora for hora in HORAS
+        if hora not in horas_ocupadas
+    ]
 
-        servicio = st.selectbox(
-            "Selecciona tu servicio",
-            list(SERVICIOS.keys())
-        )
+    if fecha_reserva == date.today():
+        hora_actual = datetime.now().strftime("%H:%M")
 
-        st.markdown(
-            f"### Precio: {SERVICIOS[servicio]:.2f} €"
-        )
+        horas_disponibles = [
+            hora for hora in horas_disponibles
+            if hora > hora_actual
+        ]
 
-        fecha = st.date_input(
-            "Día de la cita",
-            min_value=date.today(),
-            value=date.today(),
-            format="DD/MM/YYYY"
-        )
+    if not horas_disponibles:
+        st.warning("No quedan horas disponibles para este día.")
 
-        # Consultar horas ocupadas
+    else:
 
-        with conectar() as con:
+        with st.form("formulario_reserva"):
 
-            cursor = con.cursor()
-
-            cursor.execute(
-                "SELECT hora FROM citas WHERE fecha = %s",
-                (fecha,)
+            cliente = st.text_input(
+                "Nombre del cliente",
+                placeholder="Introduce tu nombre"
             )
 
-            filas = cursor.fetchall()
-            cursor.close()
+            telefono = st.text_input(
+                "Teléfono",
+                placeholder="Introduce tu teléfono"
+            )
 
-        horas_ocupadas = [
-            fila[0].strftime("%H:%M")
-            for fila in filas
-        ]
+            servicio = st.selectbox(
+                "Servicio",
+                list(SERVICIOS.keys())
+            )
 
-        horas_libres = [
-            h for h in HORAS
-            if h not in horas_ocupadas
-        ]
+            st.markdown(
+                f"### Precio: {euros(SERVICIOS[servicio])}"
+            )
 
-        if horas_libres:
-
-            hora = st.selectbox(
+            hora_reserva = st.selectbox(
                 "Hora disponible",
-                horas_libres
+                horas_disponibles
             )
 
-        else:
-
-            hora = None
-
-            st.warning(
-                "No quedan horas disponibles para este día."
+            reservar = st.form_submit_button(
+                "Confirmar reserva"
             )
 
-        aceptar = st.form_submit_button(
-            "💈 CONFIRMAR RESERVA",
-            use_container_width=True
-        )
+        if reservar:
 
-        if aceptar:
+            if not cliente.strip():
+                st.error("Introduce el nombre del cliente.")
 
-            if not cliente.strip() or not telefono.strip():
-
-                st.error(
-                    "Introduce tu nombre y teléfono."
-                )
-
-            elif not hora:
-
-                st.error(
-                    "Selecciona otro día."
-                )
+            elif not telefono.strip():
+                st.error("Introduce el teléfono.")
 
             else:
-
                 try:
-
-                    with conectar() as con:
-
-                        cursor = con.cursor()
-
-                        cursor.execute("""
-                            INSERT INTO citas
-                            (
-                                cliente,
-                                telefono,
-                                servicio,
-                                precio,
-                                fecha,
-                                hora
-                            )
-                            VALUES (%s, %s, %s, %s, %s, %s)
-                        """, (
+                    ejecutar(
+                        """
+                        INSERT INTO public.citas
+                        (cliente, telefono, servicio, precio, fecha, hora, pagada)
+                        VALUES (%s, %s, %s, %s, %s, %s, FALSE)
+                        """,
+                        (
                             cliente.strip(),
                             telefono.strip(),
                             servicio,
                             SERVICIOS[servicio],
-                            fecha,
-                            hora
-                        ))
-
-                        cursor.close()
-
-                    st.success(
-                        f"¡Reserva confirmada para {cliente}! "
-                        f"El {fecha.strftime('%d/%m/%Y')} "
-                        f"a las {hora}."
+                            fecha_reserva,
+                            hora_reserva,
+                        )
                     )
 
-                except psycopg2.errors.UniqueViolation:
-
-                    st.error(
-                        "Esa hora acaba de ser reservada. "
-                        "Selecciona otra."
+                    st.success(
+                        f"¡Reserva confirmada para {cliente} "
+                        f"el {fecha_reserva.strftime('%d/%m/%Y')} "
+                        f"a las {hora_reserva}!"
                     )
 
                 except Exception:
-
                     st.error(
-                        "No se ha podido guardar la cita. "
-                        "Inténtalo de nuevo."
+                        "No se ha podido realizar la reserva. "
+                        "Puede que esa hora ya esté ocupada."
                     )
 
 
-# ==========================================
-# ACCESO PROPIETARIO
-# ==========================================
+# =========================================================
+# PANEL DEL PROPIETARIO
+# =========================================================
 
-elif modo == "🔐 Acceso propietario":
+elif modo == "Panel propietario":
 
-    st.header("Zona privada")
+    st.markdown("## 🔐 Panel del propietario")
 
-    if not st.session_state.get("autorizado", False):
+    if "propietario_autenticado" not in st.session_state:
+        st.session_state.propietario_autenticado = False
 
-        st.info(
-            "🔒 Acceso exclusivo del propietario"
-        )
+    if not st.session_state.propietario_autenticado:
 
         pin = st.text_input(
-            "Introduce tu PIN",
+            "Introduce el PIN del propietario",
             type="password"
         )
 
-        if st.button(
-            "🔐 ENTRAR",
-            use_container_width=True
-        ):
+        if st.button("Entrar"):
 
-            if pin == PIN:
+            pin_correcto = str(
+                st.secrets.get("OWNER_PIN", "1234")
+            )
 
-                st.session_state.autorizado = True
+            if pin == pin_correcto:
+                st.session_state.propietario_autenticado = True
                 st.rerun()
 
             else:
-
                 st.error("PIN incorrecto.")
 
     else:
 
-        if st.button("Cerrar sesión"):
-
-            st.session_state.autorizado = False
+        if st.button("Cerrar sesión del propietario"):
+            st.session_state.propietario_autenticado = False
             st.rerun()
 
-        st.subheader("Panel de control")
+        pestañas = st.tabs(["📅 Citas", "💰 Caja"])
 
-        pestanas = st.tabs([
-            "📋 Citas",
-            "💰 Caja"
-        ])
-
-        # ==================================
+        # =================================================
         # PESTAÑA CITAS
-        # ==================================
+        # =================================================
 
-        with pestanas[0]:
+        with pestañas[0]:
 
-            dia = st.date_input(
+            st.markdown("### Gestión de citas")
+
+            fecha_gestion = st.date_input(
                 "Consultar citas del día",
                 value=date.today(),
-                format="DD/MM/YYYY"
+                format="DD/MM/YYYY",
+                key="fecha_gestion"
             )
 
-            with conectar() as con:
+            citas_dia = consultar(
+                """
+                SELECT id, cliente, telefono, servicio,
+                       precio, hora, pagada
+                FROM public.citas
+                WHERE fecha = %s
+                ORDER BY hora
+                """,
+                (fecha_gestion,)
+            )
 
-                cursor = con.cursor()
+            total_citas = len(citas_dia)
 
-                cursor.execute("""
-                    SELECT
-                        id,
-                        cliente,
-                        telefono,
-                        servicio,
-                        precio,
-                        hora,
-                        pagada
-                    FROM citas
-                    WHERE fecha = %s
-                    ORDER BY hora
-                """, (dia,))
+            citas_cobradas = sum(
+                1 for cita in citas_dia if cita[6]
+            )
 
-                citas = cursor.fetchall()
-                cursor.close()
+            citas_pendientes = total_citas - citas_cobradas
 
-            if not citas:
+            col1, col2, col3 = st.columns(3)
 
-                st.info(
-                    "No hay citas para este día."
-                )
+            col1.metric("Citas", total_citas)
+            col2.metric("Cobradas", citas_cobradas)
+            col3.metric("Pendientes", citas_pendientes)
+
+            st.divider()
+
+            if not citas_dia:
+                st.info("No hay citas para este día.")
 
             else:
 
-                cobradas = sum(
-                    1 for c in citas if c[6]
-                )
+                for cita in citas_dia:
 
-                col1, col2 = st.columns(2)
+                    (
+                        cita_id,
+                        cliente_cita,
+                        telefono_cita,
+                        servicio_cita,
+                        precio_cita,
+                        hora_cita,
+                        pagada_cita
+                    ) = cita
 
-                col1.metric(
-                    "Total de citas",
-                    len(citas)
-                )
-
-                col2.metric(
-                    "Citas cobradas",
-                    cobradas
-                )
-
-                st.divider()
-
-                for c in citas:
-
-                    hora_texto = c[5].strftime("%H:%M")
+                    estado = (
+                        "✅ COBRADA"
+                        if pagada_cita
+                        else "🟡 PENDIENTE DE COBRO"
+                    )
 
                     with st.container(border=True):
 
                         st.markdown(
-                            f"### 🕒 {hora_texto} — {c[1]}"
+                            f"### 🕒 {str(hora_cita)[:5]} · "
+                            f"{cliente_cita}"
                         )
 
-                        st.write(
-                            f"**{c[3]}** · {c[4]:.2f} €"
-                        )
+                        st.write(f"📞 {telefono_cita}")
+                        st.write(f"✂️ {servicio_cita}")
+                        st.write(f"💶 {euros(precio_cita)}")
+                        st.write(estado)
 
-                        st.caption(
-                            f"Teléfono: {c[2]}"
-                        )
-
-                        if c[6]:
-
-                            st.success(
-                                "✓ CITA PAGADA"
-                            )
-
-                        else:
-
-                            st.warning(
-                                "PENDIENTE DE COBRO"
-                            )
+                        if not pagada_cita:
 
                             if st.button(
-                                "💰 COBRAR CITA",
-                                key=f"cobrar_{c[0]}",
-                                use_container_width=True
+                                f"💰 Cobrar cita de {cliente_cita}",
+                                key=f"cobrar_cita_{cita_id}"
                             ):
 
-                                with conectar() as con:
+                                ejecutar(
+                                    """
+                                    UPDATE public.citas
+                                    SET pagada = TRUE
+                                    WHERE id = %s
+                                    """,
+                                    (cita_id,)
+                                )
 
-                                    cursor = con.cursor()
-
-                                    cursor.execute(
-                                        """
-                                        UPDATE citas
-                                        SET pagada = TRUE
-                                        WHERE id = %s
-                                        """,
-                                        (c[0],)
-                                    )
-
-                                    cursor.close()
+                                st.success(
+                                    f"Cita de {cliente_cita} cobrada."
+                                )
 
                                 st.rerun()
 
-        # ==================================
+
+        # =================================================
         # PESTAÑA CAJA
-        # ==================================
+        # =================================================
 
-        with pestanas[1]:
+        with pestañas[1]:
 
-            st.subheader("💰 Caja del día")
+            st.markdown("## 💰 Caja")
 
-            with conectar() as con:
+            # ---------------------------------------------
+            # CAJA DE HOY
+            # ---------------------------------------------
 
-                cursor = con.cursor()
+            st.markdown("### 📍 Caja de hoy")
 
-                cursor.execute("""
-                    SELECT COALESCE(SUM(precio), 0)
-                    FROM citas
-                    WHERE fecha = %s
-                    AND pagada = TRUE
-                """, (date.today(),))
+            caja_hoy = consultar(
+                """
+                SELECT
+                    COALESCE(SUM(precio) FILTER (WHERE pagada = TRUE), 0),
+                    COALESCE(SUM(precio) FILTER (WHERE pagada = FALSE), 0),
+                    COUNT(*) FILTER (WHERE pagada = TRUE),
+                    COUNT(*)
+                FROM public.citas
+                WHERE fecha = %s
+                """,
+                (date.today(),)
+            )[0]
 
-                total = cursor.fetchone()[0]
-
-                cursor.execute("""
-                    SELECT COALESCE(SUM(precio), 0)
-                    FROM citas
-                    WHERE fecha = %s
-                    AND pagada = FALSE
-                """, (date.today(),))
-
-                pendientes = cursor.fetchone()[0]
-
-                cursor.close()
+            cobrado_hoy = caja_hoy[0]
+            pendiente_hoy = caja_hoy[1]
+            numero_cobradas_hoy = caja_hoy[2]
+            total_citas_hoy = caja_hoy[3]
 
             col1, col2 = st.columns(2)
 
-            with col1:
+            col1.metric(
+                "Cobrado hoy",
+                euros(cobrado_hoy)
+            )
 
-                st.metric(
-                    "RECAUDACIÓN DE HOY",
-                    f"{total:.2f} €"
-                )
+            col2.metric(
+                "Pendiente hoy",
+                euros(pendiente_hoy)
+            )
 
-            with col2:
-
-                st.metric(
-                    "PENDIENTE DE COBRO",
-                    f"{pendientes:.2f} €"
-                )
+            st.caption(
+                f"Citas cobradas hoy: {numero_cobradas_hoy} "
+                f"de {total_citas_hoy}"
+            )
 
             st.divider()
 
-            st.caption(
-                "Resumen económico de las citas de hoy."
+            # ---------------------------------------------
+            # SELECTOR DE MES Y AÑO
+            # ---------------------------------------------
+
+            st.markdown("### 📆 Consulta de caja mensual")
+
+            col_mes, col_anio = st.columns(2)
+
+            with col_mes:
+
+                mes_seleccionado = st.selectbox(
+                    "Selecciona el mes",
+                    MESES,
+                    index=date.today().month - 1,
+                    key="mes_caja"
+                )
+
+            with col_anio:
+
+                anios_disponibles = list(
+                    range(date.today().year, date.today().year - 6, -1)
+                )
+
+                anio_seleccionado = st.selectbox(
+                    "Selecciona el año",
+                    anios_disponibles,
+                    index=0,
+                    key="anio_caja"
+                )
+
+            numero_mes = MESES.index(mes_seleccionado) + 1
+
+            fecha_inicio = date(
+                anio_seleccionado,
+                numero_mes,
+                1
             )
 
+            if numero_mes == 12:
 
-# ==========================================
-# PIE DE PAGINA
-# ==========================================
+                fecha_fin = date(
+                    anio_seleccionado + 1,
+                    1,
+                    1
+                )
 
-st.divider()
+            else:
 
-st.markdown(
-    "<p style='text-align:center; color:#b99a5b;'>"
-    "💈 SISTEMA DE GESTIÓN · PELUQUERÍA"
-    "<br>DISEÑO PREMIUM"
-    "</p>",
-    unsafe_allow_html=True
-)
+                fecha_fin = date(
+                    anio_seleccionado,
+                    numero_mes + 1,
+                    1
+                )
+
+            # ---------------------------------------------
+            # CONSULTA DE TODOS LOS COBROS DEL MES
+            # ---------------------------------------------
+
+            citas_mes = consultar(
+                """
+                SELECT id, cliente, telefono, servicio,
+                       precio, fecha, hora, pagada
+                FROM public.citas
+                WHERE fecha >= %s
+                  AND fecha < %s
+                ORDER BY fecha ASC, hora ASC
+                """,
+                (fecha_inicio, fecha_fin)
+            )
+
+            total_citas_mes = len(citas_mes)
+
+            total_cobrado_mes = sum(
+                (
+                    Decimal(str(cita[4] or 0))
+                    for cita in citas_mes
+                    if cita[7]
+                ),
+                Decimal("0.00")
+            )
+
+            total_pendiente_mes = sum(
+                (
+                    Decimal(str(cita[4] or 0))
+                    for cita in citas_mes
+                    if not cita[7]
+                ),
+                Decimal("0.00")
+            )
+
+            numero_cobradas_mes = sum(
+                1 for cita in citas_mes if cita[7]
+            )
+
+            numero_pendientes_mes = sum(
+                1 for cita in citas_mes if not cita[7]
+            )
+
+            # ---------------------------------------------
+            # RESUMEN MENSUAL
+            # ---------------------------------------------
+
+            st.markdown(
+                f"### Resumen de {mes_seleccionado} "
+                f"{anio_seleccionado}"
+            )
+
+            col1, col2 = st.columns(2)
+
+            col1.metric(
+                "💶 Total cobrado del mes",
+                euros(total_cobrado_mes)
+            )
+
+            col2.metric(
+                "🟡 Pendiente de cobrar",
+                euros(total_pendiente_mes)
+            )
+
+            col3, col4 = st.columns(2)
+
+            col3.metric(
+                "✅ Citas cobradas",
+                numero_cobradas_mes
+            )
+
+            col4.metric(
+                "📅 Total de citas",
+                total_citas_mes
+            )
+
+            st.caption(
+                f"Citas pendientes de cobro: "
+                f"{numero_pendientes_mes}"
+            )
+
+            st.divider()
+
+            # ---------------------------------------------
+            # HISTÓRICO DE COBROS DEL MES
+            # ---------------------------------------------
+
+            st.markdown(
+                f"### 📋 Histórico de {mes_seleccionado}"
+            )
+
+            if not citas_mes:
+
+                st.info(
+                    "No hay citas registradas durante este mes."
+                )
+
+            else:
+
+                for cita in citas_mes:
+
+                    (
+                        cita_id,
+                        cliente_cita,
+                        telefono_cita,
+                        servicio_cita,
+                        precio_cita,
+                        fecha_cita,
+                        hora_cita,
+                        pagada_cita
+                    ) = cita
+
+                    fecha_texto = fecha_cita.strftime("%d/%m/%Y")
+                    hora_texto = str(hora_cita)[:5]
+
+                    if pagada_cita:
+
+                        estado_texto = "✅ COBRADA"
+                        clase_estado = "estado-pagado"
+
+                    else:
+
+                        estado_texto = "🟡 PENDIENTE"
+                        clase_estado = "estado-pendiente"
+
+                    st.markdown(
+                        f"""
+                        <div class="cita-card">
+                            <h4 style="color:#d4af37;">
+                                {fecha_texto} · {hora_texto}
+                            </h4>
+                            <p><b>Cliente:</b> {cliente_cita}</p>
+                            <p><b>Teléfono:</b> {telefono_cita}</p>
+                            <p><b>Servicio:</b> {servicio_cita}</p>
+                            <p><b>Importe:</b> {euros(precio_cita)}</p>
+                            <p class="{clase_estado}">
+                                {estado_texto}
+                            </p>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+
+                    # Permite cobrar citas pendientes
+                    # desde el histórico mensual
+
+                    if not pagada_cita:
+
+                        if st.button(
+                            f"💰 Cobrar {cliente_cita} "
+                            f"({fecha_texto})",
+                            key=f"cobrar_mes_{cita_id}"
+                        ):
+
+                            ejecutar(
+                                """
+                                UPDATE public.citas
+                                SET pagada = TRUE
+                                WHERE id = %s
+                                """,
+                                (cita_id,)
+                            )
+
+                            st.success(
+                                f"Cita de {cliente_cita} cobrada."
+                            )
+
+                            st.rerun()
+
+            st.divider()
+
+            st.markdown(
+                "<p style='text-align:center;color:#d4af37;'>"
+                "💈 Gestión de caja · Peluquería"
+                "</p>",
+                unsafe_allow_html=True
+            )
