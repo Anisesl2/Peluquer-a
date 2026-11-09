@@ -209,7 +209,6 @@ if modo == "Reservar cita":
         format="DD/MM/YYYY"
     )
 
-    # Consultar las horas ya ocupadas para ese día
     citas_ocupadas = consultar(
         """
         SELECT hora
@@ -348,7 +347,11 @@ elif modo == "Panel propietario":
             st.session_state.propietario_autenticado = False
             st.rerun()
 
-        pestañas = st.tabs(["📅 Citas", "💰 Caja"])
+        pestañas = st.tabs([
+            "📅 Citas",
+            "💰 Caja",
+            "📦 Productos"
+        ])
 
         # =================================================
         # PESTAÑA CITAS
@@ -458,9 +461,7 @@ elif modo == "Panel propietario":
 
             st.markdown("## 💰 Caja")
 
-            # ---------------------------------------------
             # CAJA DE HOY
-            # ---------------------------------------------
 
             st.markdown("### 📍 Caja de hoy")
 
@@ -484,15 +485,8 @@ elif modo == "Panel propietario":
 
             col1, col2 = st.columns(2)
 
-            col1.metric(
-                "Cobrado hoy",
-                euros(cobrado_hoy)
-            )
-
-            col2.metric(
-                "Pendiente hoy",
-                euros(pendiente_hoy)
-            )
+            col1.metric("Cobrado hoy", euros(cobrado_hoy))
+            col2.metric("Pendiente hoy", euros(pendiente_hoy))
 
             st.caption(
                 f"Citas cobradas hoy: {numero_cobradas_hoy} "
@@ -501,9 +495,7 @@ elif modo == "Panel propietario":
 
             st.divider()
 
-            # ---------------------------------------------
             # SELECTOR DE MES Y AÑO
-            # ---------------------------------------------
 
             st.markdown("### 📆 Consulta de caja mensual")
 
@@ -540,24 +532,19 @@ elif modo == "Panel propietario":
             )
 
             if numero_mes == 12:
-
                 fecha_fin = date(
                     anio_seleccionado + 1,
                     1,
                     1
                 )
-
             else:
-
                 fecha_fin = date(
                     anio_seleccionado,
                     numero_mes + 1,
                     1
                 )
 
-            # ---------------------------------------------
-            # CONSULTA DE TODOS LOS COBROS DEL MES
-            # ---------------------------------------------
+            # CONSULTA DE COBROS DEL MES
 
             citas_mes = consultar(
                 """
@@ -599,9 +586,7 @@ elif modo == "Panel propietario":
                 1 for cita in citas_mes if not cita[7]
             )
 
-            # ---------------------------------------------
             # RESUMEN MENSUAL
-            # ---------------------------------------------
 
             st.markdown(
                 f"### Resumen de {mes_seleccionado} "
@@ -622,26 +607,16 @@ elif modo == "Panel propietario":
 
             col3, col4 = st.columns(2)
 
-            col3.metric(
-                "✅ Citas cobradas",
-                numero_cobradas_mes
-            )
-
-            col4.metric(
-                "📅 Total de citas",
-                total_citas_mes
-            )
+            col3.metric("✅ Citas cobradas", numero_cobradas_mes)
+            col4.metric("📅 Total de citas", total_citas_mes)
 
             st.caption(
-                f"Citas pendientes de cobro: "
-                f"{numero_pendientes_mes}"
+                f"Citas pendientes de cobro: {numero_pendientes_mes}"
             )
 
             st.divider()
 
-            # ---------------------------------------------
-            # HISTÓRICO DE COBROS DEL MES
-            # ---------------------------------------------
+            # HISTÓRICO MENSUAL
 
             st.markdown(
                 f"### 📋 Histórico de {mes_seleccionado}"
@@ -672,12 +647,9 @@ elif modo == "Panel propietario":
                     hora_texto = str(hora_cita)[:5]
 
                     if pagada_cita:
-
                         estado_texto = "✅ COBRADA"
                         clase_estado = "estado-pagado"
-
                     else:
-
                         estado_texto = "🟡 PENDIENTE"
                         clase_estado = "estado-pendiente"
 
@@ -698,9 +670,6 @@ elif modo == "Panel propietario":
                         """,
                         unsafe_allow_html=True
                     )
-
-                    # Permite cobrar citas pendientes
-                    # desde el histórico mensual
 
                     if not pagada_cita:
 
@@ -733,3 +702,246 @@ elif modo == "Panel propietario":
                 "</p>",
                 unsafe_allow_html=True
             )
+
+
+        # =================================================
+        # PESTAÑA PRODUCTOS
+        # =================================================
+
+        with pestañas[2]:
+
+            st.markdown("## 📦 Gestión de productos")
+
+            st.caption(
+                "Añade productos y administra sus precios."
+            )
+
+            # ---------------------------------------------
+            # AÑADIR PRODUCTO
+            # ---------------------------------------------
+
+            st.markdown("### ➕ Añadir producto")
+
+            with st.form("formulario_nuevo_producto"):
+
+                nuevo_nombre = st.text_input(
+                    "Nombre del producto",
+                    placeholder="Ej. Champú profesional"
+                )
+
+                nuevo_precio = st.number_input(
+                    "Precio (€)",
+                    min_value=0.0,
+                    value=0.0,
+                    step=0.50,
+                    format="%.2f"
+                )
+
+                guardar_producto = st.form_submit_button(
+                    "Guardar producto"
+                )
+
+            if guardar_producto:
+
+                if not nuevo_nombre.strip():
+                    st.error("Introduce el nombre del producto.")
+
+                else:
+                    ejecutar(
+                        """
+                        INSERT INTO public.productos
+                        (nombre, precio, activo)
+                        VALUES (%s, %s, TRUE)
+                        """,
+                        (
+                            nuevo_nombre.strip(),
+                            Decimal(str(nuevo_precio))
+                        )
+                    )
+
+                    st.success(
+                        f"Producto {nuevo_nombre} añadido correctamente."
+                    )
+
+                    st.rerun()
+
+            st.divider()
+
+            # ---------------------------------------------
+            # CONSULTAR PRODUCTOS
+            # ---------------------------------------------
+
+            st.markdown("### 📋 Productos registrados")
+
+            productos = consultar(
+                """
+                SELECT id, nombre, precio, activo
+                FROM public.productos
+                ORDER BY nombre ASC
+                """
+            )
+
+            if not productos:
+
+                st.info(
+                    "Todavía no tienes productos registrados."
+                )
+
+            else:
+
+                activos = sum(
+                    1 for producto in productos if producto[3]
+                )
+
+                col1, col2 = st.columns(2)
+
+                col1.metric("Productos registrados", len(productos))
+                col2.metric("Productos activos", activos)
+
+                for producto in productos:
+
+                    producto_id = producto[0]
+                    nombre_producto = producto[1]
+                    precio_producto = producto[2]
+                    activo_producto = producto[3]
+
+                    with st.container(border=True):
+
+                        col_nombre, col_estado = st.columns([3, 1])
+
+                        with col_nombre:
+                            st.markdown(
+                                f"### {nombre_producto}"
+                            )
+
+                        with col_estado:
+                            if activo_producto:
+                                st.success("Activo")
+                            else:
+                                st.warning("Inactivo")
+
+                        st.markdown(
+                            f"**Precio: {euros(precio_producto)}**"
+                        )
+
+                st.divider()
+
+                # -----------------------------------------
+                # MODIFICAR PRODUCTO
+                # -----------------------------------------
+
+                st.markdown("### ✏️ Modificar producto")
+
+                opciones_productos = {
+                    f"{p[1]} — {euros(p[2])}": p
+                    for p in productos
+                }
+
+                producto_seleccionado = st.selectbox(
+                    "Selecciona el producto",
+                    list(opciones_productos.keys()),
+                    key="producto_editar"
+                )
+
+                producto_actual = opciones_productos[
+                    producto_seleccionado
+                ]
+
+                id_editar = producto_actual[0]
+                nombre_actual = producto_actual[1]
+                precio_actual = producto_actual[2]
+                activo_actual = producto_actual[3]
+
+                with st.form("formulario_editar_producto"):
+
+                    nombre_editado = st.text_input(
+                        "Nombre",
+                        value=nombre_actual
+                    )
+
+                    precio_editado = st.number_input(
+                        "Precio (€)",
+                        min_value=0.0,
+                        value=float(precio_actual),
+                        step=0.50,
+                        format="%.2f"
+                    )
+
+                    activo_editado = st.checkbox(
+                        "Producto activo",
+                        value=activo_actual
+                    )
+
+                    guardar_cambios = st.form_submit_button(
+                        "Guardar cambios"
+                    )
+
+                if guardar_cambios:
+
+                    if not nombre_editado.strip():
+
+                        st.error(
+                            "El nombre del producto no puede estar vacío."
+                        )
+
+                    else:
+
+                        ejecutar(
+                            """
+                            UPDATE public.productos
+                            SET nombre = %s,
+                                precio = %s,
+                                activo = %s
+                            WHERE id = %s
+                            """,
+                            (
+                                nombre_editado.strip(),
+                                Decimal(str(precio_editado)),
+                                activo_editado,
+                                id_editar
+                            )
+                        )
+
+                        st.success(
+                            "Producto actualizado correctamente."
+                        )
+
+                        st.rerun()
+
+                st.divider()
+
+                # -----------------------------------------
+                # ELIMINAR PRODUCTO
+                # -----------------------------------------
+
+                st.markdown("### 🗑️ Eliminar producto")
+
+                confirmar_eliminacion = st.checkbox(
+                    f"Confirmo que quiero eliminar "
+                    f"{nombre_actual}",
+                    key=f"confirmar_borrar_{id_editar}"
+                )
+
+                if st.button(
+                    "Eliminar producto seleccionado",
+                    key="boton_eliminar_producto"
+                ):
+
+                    if confirmar_eliminacion:
+
+                        ejecutar(
+                            """
+                            DELETE FROM public.productos
+                            WHERE id = %s
+                            """,
+                            (id_editar,)
+                        )
+
+                        st.success("Producto eliminado correctamente.")
+                        st.rerun()
+
+                    else:
+
+                        st.warning(
+                            "Marca la casilla de confirmación antes de eliminar."
+                        )
