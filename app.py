@@ -1,4 +1,3 @@
-
 import streamlit as st
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -6,6 +5,9 @@ from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from html import escape
 import re
+import hashlib
+import hmac
+import secrets
 
 # ============================================================
 # CONFIGURACIÓN GENERAL
@@ -286,6 +288,75 @@ def euros(valor):
 
 
 # ============================================================
+# SEGURIDAD: PIN DEL PROPIETARIO
+# ============================================================
+
+def crear_hash_pin(pin, salt=None):
+    """Genera un hash PBKDF2 del PIN con una sal aleatoria."""
+    if salt is None:
+        salt = secrets.token_bytes(16)
+
+    pin_hash = hashlib.pbkdf2_hmac(
+        "sha256",
+        pin.encode("utf-8"),
+        salt,
+        600_000
+    )
+
+    return salt.hex(), pin_hash.hex()
+
+
+def obtener_credencial_pin():
+    filas = consultar("""
+        SELECT salt, pin_hash
+        FROM public.seguridad
+        WHERE id = 1
+    """)
+
+    if not filas:
+        return None
+
+    return filas[0]
+
+
+def verificar_pin(pin):
+    credencial = obtener_credencial_pin()
+
+    if not credencial:
+        return False
+
+    try:
+        salt = bytes.fromhex(credencial["salt"])
+        hash_guardado = bytes.fromhex(credencial["pin_hash"])
+
+        hash_introducido = hashlib.pbkdf2_hmac(
+            "sha256",
+            pin.encode("utf-8"),
+            salt,
+            600_000
+        )
+
+        return hmac.compare_digest(hash_introducido, hash_guardado)
+
+    except (ValueError, TypeError, KeyError):
+        return False
+
+
+def guardar_nuevo_pin(pin):
+    salt_hex, hash_hex = crear_hash_pin(pin)
+
+    ejecutar("""
+        INSERT INTO public.seguridad (id, salt, pin_hash, actualizado)
+        VALUES (1, %s, %s, NOW())
+        ON CONFLICT (id)
+        DO UPDATE SET
+            salt = EXCLUDED.salt,
+            pin_hash = EXCLUDED.pin_hash,
+            actualizado = NOW()
+    """, (salt_hex, hash_hex))
+
+
+# ============================================================
 # INICIALIZACIÓN DE TABLAS
 # ============================================================
 
@@ -334,6 +405,16 @@ def inicializar_base_datos():
                 );
             """)
 
+            # Esta tabla guarda el hash del PIN, nunca el PIN en texto plano.
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS public.seguridad (
+                    id SMALLINT PRIMARY KEY CHECK (id = 1),
+                    salt VARCHAR(64) NOT NULL,
+                    pin_hash VARCHAR(128) NOT NULL,
+                    actualizado TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+            """)
+
             cursor.execute("""
                 INSERT INTO public.servicios
                     (nombre, precio, activo)
@@ -365,6 +446,32 @@ def inicializar_base_datos():
                     VALUES (%s, %s)
                     ON CONFLICT (clave) DO NOTHING;
                 """, (clave, valor))
+
+            # Solo se establece el PIN inicial si todavía no existe.
+            # Si OWNER_PIN está definido en Streamlit Secrets se utiliza ese valor.
+            pin_inicial = str(st.secrets.get("OWNER_PIN", "1234")).strip()
+            cursor.execute("""
+                SELECT id
+                FROM public.seguridad
+                WHERE id = 1
+            """)
+            existe_pin = cursor.fetchone()
+
+            if not existe_pin:
+                salt = secrets.token_bytes(16)
+                pin_hash = hashlib.pbkdf2_hmac(
+                    "sha256",
+                    pin_inicial.encode("utf-8"),
+                    salt,
+                    600_000
+                )
+
+                cursor.execute("""
+                    INSERT INTO public.seguridad
+                        (id, salt, pin_hash, actualizado)
+                    VALUES (1, %s, %s, NOW())
+                    ON CONFLICT (id) DO NOTHING
+                """, (salt.hex(), pin_hash.hex()))
 
         conexion.commit()
 
@@ -515,6 +622,9 @@ if "pagina" not in st.session_state:
 
 if "admin_autenticado" not in st.session_state:
     st.session_state.admin_autenticado = False
+
+if "mensaje_pin" not in st.session_state:
+    st.session_state.mensaje_pin = ""
 
 
 def ir_a(pagina):
@@ -996,11 +1106,76 @@ def pagina_contacto(config):
 # PANEL DE PROPIETARIO
 # ============================================================
 
+def panel_cambiar_pin():
+
+    st.markdown("---")
+
+    with st.expander("🔐 CAMBIAR PIN DE ACCESO", expanded=False):
+
+        st.write(
+            "Cambia el PIN que utilizas para entrar al panel de propietario. "
+            "El PIN se almacena en la base de datos mediante un hash seguro."
+        )
+
+        with st.form("form_cambiar_pin"):
+
+            pin_actual = st.text_input(
+                "PIN actual",
+                type="password",
+                key="pin_actual_cambio"
+            )
+
+            pin_nuevo = st.text_input(
+                "Nuevo PIN (entre 4 y 12 cifras)",
+                type="password",
+                key="pin_nuevo_cambio"
+            )
+
+            confirmar_pin = st.text_input(
+                "Confirma el nuevo PIN",
+                type="password",
+                key="confirmar_pin_cambio"
+            )
+
+            cambiar = st.form_submit_button(
+                "GUARDAR NUEVO PIN",
+                use_container_width=True
+            )
+
+        if cambiar:
+
+            if not verificar_pin(pin_actual):
+                st.error("El PIN actual no es correcto.")
+
+            elif not pin_nuevo.isdigit() or not (4 <= len(pin_nuevo) <= 12):
+                st.error("El nuevo PIN debe contener entre 4 y 12 cifras.")
+
+            elif pin_nuevo != confirmar_pin:
+                st.error("La confirmación no coincide con el nuevo PIN.")
+
+            elif pin_nuevo == pin_actual:
+                st.error("El nuevo PIN debe ser diferente del actual.")
+
+            else:
+                try:
+                    guardar_nuevo_pin(pin_nuevo)
+                    st.session_state.admin_autenticado = False
+                    st.session_state.mensaje_pin = (
+                        "PIN cambiado correctamente. Vuelve a entrar con tu nuevo PIN."
+                    )
+                    st.rerun()
+
+                except Exception:
+                    st.error("No se ha podido actualizar el PIN. Inténtalo de nuevo.")
+
+
 def pagina_propietario():
 
-    pin_correcto = str(st.secrets.get("OWNER_PIN", "1234"))
-
     if not st.session_state.admin_autenticado:
+
+        if st.session_state.mensaje_pin:
+            st.success(st.session_state.mensaje_pin)
+            st.session_state.mensaje_pin = ""
 
         st.markdown("""
         <div class="section-title">
@@ -1024,7 +1199,7 @@ def pagina_propietario():
 
         if entrar:
 
-            if pin == pin_correcto:
+            if verificar_pin(pin):
                 st.session_state.admin_autenticado = True
                 st.rerun()
             else:
@@ -1066,6 +1241,8 @@ def pagina_propietario():
 
     with pestañas[4]:
         panel_web()
+
+    panel_cambiar_pin()
 
 
 # ============================================================
