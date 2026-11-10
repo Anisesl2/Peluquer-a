@@ -907,7 +907,9 @@ def pagina_inicio(config):
         if logo else ""
     )
 
-    st.markdown(f"""
+    # La portada se renderiza con st.html (no como Markdown) para evitar
+    # que Streamlit muestre literalmente las etiquetas <div>, <h1> y <p>.
+    html_portada = f"""
     <div class="hero" style="background-image:url('{escape(foto, quote=True)}');">
         <div class="hero-content">
             {logo_html}
@@ -917,7 +919,14 @@ def pagina_inicio(config):
             <p>{descripcion}</p>
         </div>
     </div>
-    """, unsafe_allow_html=True)
+    """
+
+    renderizador_html = getattr(st, "html", None)
+    if callable(renderizador_html):
+        renderizador_html(html_portada)
+    else:
+        # Compatibilidad con versiones antiguas de Streamlit.
+        st.markdown(html_portada, unsafe_allow_html=True)
 
     centro = st.columns([1, 2, 1])
 
