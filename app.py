@@ -26,196 +26,247 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap');
+
+:root {
+    --carbon: #111211;
+    --anthracite: #1b1c1a;
+    --surface: #222320;
+    --surface-soft: #292a26;
+    --champagne: #c7ad7b;
+    --champagne-light: #dfcca5;
+    --cream: #eee9df;
+    --muted: #aaa69d;
+    --line: rgba(199,173,123,.22);
+}
 
 html, body, [class*="css"] {
-    font-family: 'Montserrat', sans-serif;
+    font-family: 'DM Sans', sans-serif;
 }
 
 .stApp {
-    background: #101010;
-    color: #f5f5f5;
+    background:
+        radial-gradient(ellipse at 50% -15%, rgba(199,173,123,.075), transparent 42%),
+        var(--carbon);
+    color: var(--cream);
 }
 
 header[data-testid="stHeader"] {
-    background: rgba(16,16,16,0.95);
+    background: rgba(17,18,17,.94);
 }
 
 .block-container {
-    padding-top: 1.5rem;
-    padding-bottom: 3rem;
-    max-width: 1250px;
+    max-width: 1280px;
+    padding: 1.35rem 2.2rem 3.5rem;
 }
 
 h1, h2, h3, h4 {
-    color: #d6ad60 !important;
+    color: var(--champagne-light) !important;
+    font-family: 'Playfair Display', Georgia, serif;
+    font-weight: 500;
+    letter-spacing: .01em;
 }
 
-p, label, span {
+p, label, span, div {
     color: inherit;
 }
 
-.gold {
-    color: #d6ad60;
-}
+a { color: var(--champagne-light) !important; }
 
-.stButton > button {
-    background: linear-gradient(135deg, #d6ad60, #a77b35);
-    color: #111111;
-    border: none;
-    border-radius: 7px;
+.stButton > button, .stLinkButton > a, div[data-testid="stFormSubmitButton"] button {
+    background: linear-gradient(135deg, #d8c49b 0%, #b89b68 100%);
+    color: #171713 !important;
+    border: 1px solid rgba(235,220,188,.55);
+    border-radius: 4px;
+    font-family: 'DM Sans', sans-serif;
     font-weight: 700;
-    min-height: 44px;
-    transition: 0.2s;
+    letter-spacing: .075em;
+    min-height: 48px;
+    padding: .65rem 1.1rem;
+    box-shadow: 0 5px 18px rgba(0,0,0,.18);
+    transition: transform .2s ease, filter .2s ease, box-shadow .2s ease;
 }
 
-.stButton > button:hover {
-    background: #f0ce8b;
-    color: #111111;
-    border: none;
+.stButton > button:hover, .stLinkButton > a:hover,
+div[data-testid="stFormSubmitButton"] button:hover {
+    background: linear-gradient(135deg, #ead9b5 0%, #c7ad7b 100%);
+    color: #111 !important;
+    border-color: var(--champagne-light);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 22px rgba(0,0,0,.28);
 }
 
 div[data-testid="stForm"] {
-    background: #191919;
-    border: 1px solid #514127;
-    border-radius: 12px;
-    padding: 20px;
+    background: linear-gradient(145deg, rgba(37,38,34,.98), rgba(27,28,26,.98));
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 24px;
+    box-shadow: 0 12px 34px rgba(0,0,0,.16);
 }
 
-div[data-baseweb="input"],
-div[data-baseweb="select"],
-div[data-baseweb="textarea"] {
-    background-color: #222222;
+div[data-baseweb="input"], div[data-baseweb="select"], div[data-baseweb="textarea"] {
+    background-color: var(--surface-soft);
 }
 
 div[data-testid="stTextInput"] input,
 div[data-testid="stNumberInput"] input,
 div[data-testid="stDateInput"] input,
 div[data-testid="stTextArea"] textarea {
-    background: #222222;
-    color: white;
+    background: var(--surface-soft);
+    color: var(--cream);
+    border-color: rgba(199,173,123,.24);
+    border-radius: 4px;
 }
 
 div[data-testid="stTabs"] button {
-    color: #d6ad60;
+    color: var(--champagne-light);
+    font-weight: 600;
 }
 
 div[data-testid="stMetric"] {
-    background: #191919;
-    border: 1px solid #514127;
-    padding: 15px;
-    border-radius: 10px;
+    background: linear-gradient(145deg, #242521, #1b1c1a);
+    border: 1px solid var(--line);
+    padding: 17px;
+    border-radius: 7px;
 }
 
 div[data-testid="stMetricValue"] {
-    color: #d6ad60;
+    color: var(--champagne-light);
 }
 
-hr {
-    border-color: #514127;
+div[data-testid="stMetricLabel"] {
+    color: var(--muted);
 }
+
+hr { border-color: var(--line); }
 
 .hero {
-    min-height: 540px;
+    min-height: 610px;
     background-size: cover;
-    background-position: center;
+    background-position: center 44%;
     background-repeat: no-repeat;
-    border-radius: 15px;
+    border: 1px solid rgba(223,204,165,.2);
+    border-radius: 5px;
     overflow: hidden;
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
     text-align: center;
-    padding: 35px;
+    padding: 48px 34px;
     position: relative;
-    margin-bottom: 25px;
+    margin: 12px 0 30px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.32);
 }
 
 .hero::before {
     content: "";
     position: absolute;
     inset: 0;
-    background: linear-gradient(
-        rgba(0,0,0,0.45),
-        rgba(0,0,0,0.82)
-    );
+    background:
+        linear-gradient(180deg, rgba(10,11,10,.28) 0%, rgba(10,11,10,.46) 42%, rgba(10,11,10,.88) 100%),
+        linear-gradient(90deg, rgba(10,11,10,.30), transparent 55%, rgba(10,11,10,.22));
 }
 
 .hero-content {
     position: relative;
     z-index: 1;
-    max-width: 850px;
+    max-width: 860px;
 }
 
-.hero h1 {
-    font-size: clamp(34px, 6vw, 65px);
-    color: #f0ce8b !important;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 3px;
-    margin-bottom: 15px;
-}
-
-.hero p {
-    color: #ffffff;
-    font-size: 18px;
-    line-height: 1.7;
+.hero-logo {
+    max-width: 118px;
+    max-height: 100px;
+    object-fit: contain;
+    margin: 0 auto 25px;
+    filter: drop-shadow(0 4px 14px rgba(0,0,0,.4));
 }
 
 .hero-label {
-    color: #e4c17d;
-    letter-spacing: 5px;
-    font-size: 12px;
+    color: var(--champagne-light);
+    letter-spacing: .34em;
+    font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
+    margin-bottom: 17px;
+}
+
+.hero h1 {
+    font-size: clamp(34px, 5.6vw, 68px);
+    line-height: 1.08;
+    color: #f1e7d3 !important;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: .055em;
+    margin: 0 0 18px;
+    text-shadow: 0 3px 22px rgba(0,0,0,.4);
+}
+
+.hero p {
+    color: #f0ece4;
+    font-size: clamp(14px, 1.5vw, 17px);
+    line-height: 1.85;
+    max-width: 650px;
+    margin: 0 auto;
 }
 
 .section-title {
     text-align: center;
-    margin-top: 35px;
-    margin-bottom: 25px;
+    margin: 54px 0 30px;
 }
 
 .section-title h2 {
-    font-size: 30px;
-    letter-spacing: 2px;
+    font-size: clamp(25px, 3vw, 34px);
+    letter-spacing: .07em;
 }
 
 .section-title p {
-    color: #aaaaaa;
+    color: var(--muted);
+    font-size: 14px;
+    letter-spacing: .025em;
 }
 
 .info-card {
-    background: #191919;
-    border: 1px solid #514127;
-    border-radius: 12px;
-    padding: 22px;
-    height: 100%;
+    background: linear-gradient(145deg, #242521, #1b1c1a);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 25px;
+    min-height: 100%;
+    box-shadow: 0 10px 28px rgba(0,0,0,.13);
 }
 
 .info-card h3 {
-    color: #d6ad60;
-    margin-bottom: 10px;
+    color: var(--champagne-light);
+    font-family: 'Playfair Display', Georgia, serif;
+    font-weight: 500;
+    margin-bottom: 12px;
 }
 
+.info-card p { color: #d0ccc3; line-height: 1.7; }
+
 .gold-line {
-    width: 70px;
-    height: 3px;
-    background: #d6ad60;
-    margin: 12px auto 20px auto;
+    width: 54px;
+    height: 1px;
+    background: var(--champagne);
+    margin: 17px auto 21px;
 }
 
 .footer {
     text-align: center;
-    padding: 35px 10px;
-    margin-top: 50px;
-    border-top: 1px solid #514127;
-    color: #aaaaaa;
+    padding: 38px 10px 20px;
+    margin-top: 58px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 13px;
+    letter-spacing: .025em;
 }
 
 .footer strong {
-    color: #d6ad60;
+    color: var(--champagne-light);
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 18px;
+    font-weight: 500;
+    letter-spacing: .08em;
 }
 
 .brand-logo {
@@ -224,13 +275,93 @@ hr {
     margin-bottom: 15px;
 }
 
-.small-text {
-    color: #aaaaaa;
-    font-size: 12px;
+.small-text { color: var(--muted); font-size: 12px; }
+
+div[data-testid="stAlert"] { border-radius: 6px; }
+
+[data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"] {
+    gap: 1.1rem;
 }
 
-div[data-testid="stAlert"] {
-    border-radius: 9px;
+@media (max-width: 768px) {
+    .block-container {
+        padding: .65rem .85rem 2.5rem;
+    }
+
+    .hero {
+        min-height: 500px;
+        padding: 35px 20px;
+        margin: 4px 0 22px;
+        background-position: center;
+    }
+
+    .hero-logo {
+        max-width: 88px;
+        max-height: 78px;
+        margin-bottom: 20px;
+    }
+
+    .hero-label {
+        font-size: 9px;
+        letter-spacing: .24em;
+    }
+
+    .hero h1 {
+        font-size: clamp(29px, 9vw, 43px);
+        letter-spacing: .035em;
+    }
+
+    .hero p {
+        font-size: 14px;
+        line-height: 1.65;
+    }
+
+    .section-title {
+        margin: 38px 0 22px;
+    }
+
+    .section-title h2 {
+        font-size: 25px;
+        letter-spacing: .04em;
+    }
+
+    .info-card {
+        padding: 19px;
+        margin-bottom: 12px;
+    }
+
+    div[data-testid="stForm"] {
+        padding: 16px 13px;
+    }
+
+    div[data-testid="stMetric"] {
+        padding: 12px;
+    }
+
+    div[data-testid="stMetricValue"] {
+        font-size: 1.35rem;
+    }
+
+    .stButton > button, .stLinkButton > a,
+    div[data-testid="stFormSubmitButton"] button {
+        min-height: 47px;
+        font-size: 12px;
+        letter-spacing: .045em;
+    }
+
+    div[data-testid="stTabs"] button {
+        font-size: 12px;
+        padding: 8px 9px;
+    }
+
+    .footer { margin-top: 38px; }
+}
+
+@media (max-width: 420px) {
+    .block-container { padding-left: .65rem; padding-right: .65rem; }
+    .hero { min-height: 455px; }
+    .hero h1 { font-size: 29px; }
+    .info-card { padding: 16px; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -661,7 +792,7 @@ def mostrar_encabezado(config):
 
     st.markdown("<hr>", unsafe_allow_html=True)
 
-    columnas = st.columns(6)
+    columnas = st.columns(6, gap="small", wrap=False)
 
     paginas = [
         ("Inicio", "⌂ Inicio"),
@@ -712,13 +843,20 @@ def pagina_inicio(config):
     descripcion = escape(config.get("descripcion", "Cuidamos cada detalle para ti."))
 
     foto = config.get("foto_portada", "").strip()
+    logo = config.get("logo", "").strip()
 
     if not foto:
         foto = "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=1800&q=85"
 
+    logo_html = (
+        f"<img class='hero-logo' src='{escape(logo, quote=True)}' alt='Logotipo de {nombre}'>"
+        if logo else ""
+    )
+
     st.markdown(f"""
     <div class="hero" style="background-image:url('{escape(foto, quote=True)}');">
         <div class="hero-content">
+            {logo_html}
             <div class="hero-label">{nombre}</div>
             <h1>{eslogan}</h1>
             <div class="gold-line"></div>
