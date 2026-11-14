@@ -1,2103 +1,444 @@
 import streamlit as st
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time
 from decimal import Decimal
 from html import escape
-import re
-import hashlib
-import hmac
-import secrets
+import re, hashlib, hmac, secrets
 
-# ============================================================
-# CONFIGURACIÓN GENERAL
-# ============================================================
-
-st.set_page_config(
-    page_title="Peluquería",
-    page_icon="💈",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
-
-# ============================================================
-# DISEÑO NEGRO Y DORADO
-# ============================================================
+st.set_page_config(page_title="Peluquería", page_icon="💈", layout="wide", initial_sidebar_state="collapsed")
 
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap');
-
-:root {
-    --carbon: #111211;
-    --anthracite: #1b1c1a;
-    --surface: #222320;
-    --surface-soft: #292a26;
-    --champagne: #c7ad7b;
-    --champagne-light: #dfcca5;
-    --cream: #eee9df;
-    --muted: #aaa69d;
-    --line: rgba(199,173,123,.22);
-}
-
-html, body, [class*="css"] {
-    font-family: 'DM Sans', sans-serif;
-}
-
-.stApp {
-    background:
-        radial-gradient(ellipse at 50% -15%, rgba(199,173,123,.075), transparent 42%),
-        var(--carbon);
-    color: var(--cream);
-}
-
-header[data-testid="stHeader"] {
-    background: rgba(17,18,17,.94);
-}
-
-.block-container {
-    max-width: 1280px;
-    padding: 1.35rem 2.2rem 3.5rem;
-}
-
-h1, h2, h3, h4 {
-    color: var(--champagne-light) !important;
-    font-family: 'Playfair Display', Georgia, serif;
-    font-weight: 500;
-    letter-spacing: .01em;
-}
-
-p, label, span, div {
-    color: inherit;
-}
-
-a { color: var(--champagne-light) !important; }
-
-.stButton > button, .stLinkButton > a, div[data-testid="stFormSubmitButton"] button {
-    background: linear-gradient(135deg, #d8c49b 0%, #b89b68 100%);
-    color: #171713 !important;
-    border: 1px solid rgba(235,220,188,.55);
-    border-radius: 4px;
-    font-family: 'DM Sans', sans-serif;
-    font-weight: 700;
-    letter-spacing: .075em;
-    min-height: 48px;
-    padding: .65rem 1.1rem;
-    box-shadow: 0 5px 18px rgba(0,0,0,.18);
-    transition: transform .2s ease, filter .2s ease, box-shadow .2s ease;
-}
-
-.stButton > button:hover, .stLinkButton > a:hover,
-div[data-testid="stFormSubmitButton"] button:hover {
-    background: linear-gradient(135deg, #ead9b5 0%, #c7ad7b 100%);
-    color: #111 !important;
-    border-color: var(--champagne-light);
-    transform: translateY(-1px);
-    box-shadow: 0 8px 22px rgba(0,0,0,.28);
-}
-
-div[data-testid="stForm"] {
-    background: linear-gradient(145deg, rgba(37,38,34,.98), rgba(27,28,26,.98));
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    padding: 24px;
-    box-shadow: 0 12px 34px rgba(0,0,0,.16);
-}
-
-div[data-baseweb="input"], div[data-baseweb="select"], div[data-baseweb="textarea"] {
-    background-color: var(--surface-soft);
-}
-
-div[data-testid="stTextInput"] input,
-div[data-testid="stNumberInput"] input,
-div[data-testid="stDateInput"] input,
-div[data-testid="stTextArea"] textarea {
-    background: var(--surface-soft);
-    color: var(--cream);
-    border-color: rgba(199,173,123,.24);
-    border-radius: 4px;
-}
-
-div[data-testid="stTabs"] button {
-    color: var(--champagne-light);
-    font-weight: 600;
-}
-
-div[data-testid="stMetric"] {
-    background: linear-gradient(145deg, #242521, #1b1c1a);
-    border: 1px solid var(--line);
-    padding: 17px;
-    border-radius: 7px;
-}
-
-div[data-testid="stMetricValue"] {
-    color: var(--champagne-light);
-}
-
-div[data-testid="stMetricLabel"] {
-    color: var(--muted);
-}
-
-hr { border-color: var(--line); }
-
-.hero {
-    min-height: 610px;
-    background-size: cover;
-    background-position: center 44%;
-    background-repeat: no-repeat;
-    border: 1px solid rgba(223,204,165,.2);
-    border-radius: 5px;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    text-align: center;
-    padding: 48px 34px;
-    position: relative;
-    margin: 12px 0 30px;
-    box-shadow: 0 24px 60px rgba(0,0,0,.32);
-}
-
-.hero::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background:
-        linear-gradient(180deg, rgba(10,11,10,.28) 0%, rgba(10,11,10,.46) 42%, rgba(10,11,10,.88) 100%),
-        linear-gradient(90deg, rgba(10,11,10,.30), transparent 55%, rgba(10,11,10,.22));
-}
-
-.hero-content {
-    position: relative;
-    z-index: 1;
-    max-width: 860px;
-}
-
-.hero-logo {
-    max-width: 118px;
-    max-height: 100px;
-    object-fit: contain;
-    margin: 0 auto 25px;
-    filter: drop-shadow(0 4px 14px rgba(0,0,0,.4));
-}
-
-.hero-label {
-    color: var(--champagne-light);
-    letter-spacing: .34em;
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    margin-bottom: 17px;
-}
-
-.hero h1 {
-    font-size: clamp(34px, 5.6vw, 68px);
-    line-height: 1.08;
-    color: #f1e7d3 !important;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: .055em;
-    margin: 0 0 18px;
-    text-shadow: 0 3px 22px rgba(0,0,0,.4);
-}
-
-.hero p {
-    color: #f0ece4;
-    font-size: clamp(14px, 1.5vw, 17px);
-    line-height: 1.85;
-    max-width: 650px;
-    margin: 0 auto;
-}
-
-.section-title {
-    text-align: center;
-    margin: 54px 0 30px;
-}
-
-.section-title h2 {
-    font-size: clamp(25px, 3vw, 34px);
-    letter-spacing: .07em;
-}
-
-.section-title p {
-    color: var(--muted);
-    font-size: 14px;
-    letter-spacing: .025em;
-}
-
-.info-card {
-    background: linear-gradient(145deg, #242521, #1b1c1a);
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    padding: 25px;
-    min-height: 100%;
-    box-shadow: 0 10px 28px rgba(0,0,0,.13);
-}
-
-.info-card h3 {
-    color: var(--champagne-light);
-    font-family: 'Playfair Display', Georgia, serif;
-    font-weight: 500;
-    margin-bottom: 12px;
-}
-
-.info-card p { color: #d0ccc3; line-height: 1.7; }
-
-.gold-line {
-    width: 54px;
-    height: 1px;
-    background: var(--champagne);
-    margin: 17px auto 21px;
-}
-
-.footer {
-    text-align: center;
-    padding: 38px 10px 20px;
-    margin-top: 58px;
-    border-top: 1px solid var(--line);
-    color: var(--muted);
-    font-size: 13px;
-    letter-spacing: .025em;
-}
-
-.footer strong {
-    color: var(--champagne-light);
-    font-family: 'Playfair Display', Georgia, serif;
-    font-size: 18px;
-    font-weight: 500;
-    letter-spacing: .08em;
-}
-
-.brand-logo {
-    max-height: 90px;
-    object-fit: contain;
-    margin-bottom: 15px;
-}
-
-.small-text { color: var(--muted); font-size: 12px; }
-
-div[data-testid="stAlert"] { border-radius: 6px; }
-
-[data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"] {
-    gap: 1.1rem;
-}
-
-@media (max-width: 768px) {
-    .block-container {
-        padding: .65rem .85rem 2.5rem;
-    }
-
-    .hero {
-        min-height: 500px;
-        padding: 35px 20px;
-        margin: 4px 0 22px;
-        background-position: center;
-    }
-
-    .hero-logo {
-        max-width: 88px;
-        max-height: 78px;
-        margin-bottom: 20px;
-    }
-
-    .hero-label {
-        font-size: 9px;
-        letter-spacing: .24em;
-    }
-
-    .hero h1 {
-        font-size: clamp(29px, 9vw, 43px);
-        letter-spacing: .035em;
-    }
-
-    .hero p {
-        font-size: 14px;
-        line-height: 1.65;
-    }
-
-    .section-title {
-        margin: 38px 0 22px;
-    }
-
-    .section-title h2 {
-        font-size: 25px;
-        letter-spacing: .04em;
-    }
-
-    .info-card {
-        padding: 19px;
-        margin-bottom: 12px;
-    }
-
-    div[data-testid="stForm"] {
-        padding: 16px 13px;
-    }
-
-    div[data-testid="stMetric"] {
-        padding: 12px;
-    }
-
-    div[data-testid="stMetricValue"] {
-        font-size: 1.35rem;
-    }
-
-    .stButton > button, .stLinkButton > a,
-    div[data-testid="stFormSubmitButton"] button {
-        min-height: 47px;
-        font-size: 12px;
-        letter-spacing: .045em;
-    }
-
-    div[data-testid="stTabs"] button {
-        font-size: 12px;
-        padding: 8px 9px;
-    }
-
-    .footer { margin-top: 38px; }
-}
-
-@media (max-width: 420px) {
-    .block-container { padding-left: .65rem; padding-right: .65rem; }
-    .hero { min-height: 455px; }
-    .hero h1 { font-size: 29px; }
-    .info-card { padding: 16px; }
-}
+:root{--bg:#111211;--panel:#20211e;--panel2:#292a26;--gold:#c7ad7b;--gold2:#dfcca5;--text:#eee9df;--muted:#aaa69d;--line:rgba(199,173,123,.22)}
+.stApp{background:radial-gradient(ellipse at 50% -15%,rgba(199,173,123,.08),transparent 42%),var(--bg);color:var(--text);font-family:'DM Sans',sans-serif}
+.block-container{max-width:1280px;padding:1.3rem 2rem 3rem}
+h1,h2,h3{font-family:'Playfair Display',Georgia,serif!important;color:var(--gold2)!important;font-weight:500!important}
+.stButton>button,.stLinkButton>a,[data-testid="stFormSubmitButton"] button{background:linear-gradient(135deg,#d8c49b,#b89b68);color:#171713!important;border:1px solid rgba(235,220,188,.55);border-radius:5px;min-height:45px;font-weight:700;letter-spacing:.045em;transition:.2s}
+.stButton>button:hover,.stLinkButton>a:hover{filter:brightness(1.08);transform:translateY(-1px)}
+[data-testid="stForm"]{background:linear-gradient(145deg,#252622,#1b1c1a);border:1px solid var(--line);border-radius:9px;padding:22px}
+[data-baseweb="input"],[data-baseweb="select"],[data-baseweb="textarea"]{background:var(--panel2)}
+input,textarea{color:var(--text)!important}
+[data-testid="stMetric"]{background:linear-gradient(145deg,#242521,#1b1c1a);border:1px solid var(--line);padding:16px;border-radius:8px}
+[data-testid="stMetricValue"]{color:var(--gold2)}
+[data-testid="stMetricLabel"]{color:var(--muted)}
+[data-testid="stTabs"] button{color:var(--gold2);font-weight:600}
+hr{border-color:var(--line)}
+.hero{min-height:540px;background-size:cover;background-position:center 44%;border:1px solid var(--line);border-radius:9px;display:flex;align-items:center;justify-content:center;text-align:center;padding:35px;position:relative;margin:15px 0 28px;box-shadow:0 24px 60px #0005}
+.hero:before{content:"";position:absolute;inset:0;border-radius:9px;background:linear-gradient(180deg,#0a0b0a55,#0a0b0add)}
+.hero-content{position:relative;max-width:850px}
+.hero h1{font-size:clamp(32px,5.4vw,66px)!important;letter-spacing:.04em;text-transform:uppercase;color:#f1e7d3!important}
+.hero p{color:#f0ece4;line-height:1.8}
+.hero-label{color:var(--gold2);letter-spacing:.3em;font-size:12px;font-weight:700}
+.hero-logo{max-width:110px;max-height:90px;object-fit:contain;margin-bottom:20px}
+.section-title{text-align:center;margin:42px 0 25px}
+.section-title h2{letter-spacing:.06em}
+.section-title p,.small-text{color:var(--muted);font-size:13px}
+.gold-line{width:52px;height:1px;background:var(--gold);margin:15px auto 20px}
+.info-card{background:linear-gradient(145deg,#242521,#1b1c1a);border:1px solid var(--line);border-radius:8px;padding:23px;box-shadow:0 10px 28px #0002;margin-bottom:16px}
+.info-card p{color:#d0ccc3;line-height:1.7}
+.footer{text-align:center;padding:35px 10px 18px;margin-top:48px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+.footer strong{color:var(--gold2);font:500 18px 'Playfair Display';letter-spacing:.08em}
+@media(max-width:768px){.block-container{padding:.6rem .8rem 2rem}.hero{min-height:430px;padding:22px}.info-card{padding:17px}[data-testid="stForm"]{padding:15px}.stButton>button{font-size:12px}}
 </style>
 """, unsafe_allow_html=True)
 
-
-# ============================================================
-# CONEXIÓN A SUPABASE
-# ============================================================
-
+# ---------------------- DATABASE ----------------------
 def conectar_db():
-    return psycopg2.connect(
-        host=st.secrets["DB_HOST"],
-        port=st.secrets.get("DB_PORT", 5432),
-        database=st.secrets["DB_NAME"],
-        user=st.secrets["DB_USER"],
-        password=st.secrets["DB_PASSWORD"],
-        sslmode="require",
-        connect_timeout=15
-    )
-
+    return psycopg2.connect(host=st.secrets["DB_HOST"],port=st.secrets.get("DB_PORT",5432),
+        database=st.secrets["DB_NAME"],user=st.secrets["DB_USER"],password=st.secrets["DB_PASSWORD"],
+        sslmode="require",connect_timeout=15)
 
 def consultar(sql, parametros=None):
-    conexion = conectar_db()
+    con=conectar_db()
     try:
-        with conexion.cursor(cursor_factory=RealDictCursor) as cursor:
-            cursor.execute(sql, parametros or ())
-            resultado = cursor.fetchall()
-            return [dict(fila) for fila in resultado]
-    finally:
-        conexion.close()
+        with con.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(sql,parametros or ())
+            return [dict(r) for r in cur.fetchall()]
+    finally: con.close()
 
-
-def ejecutar(sql, parametros=None):
-    conexion = conectar_db()
+def ejecutar(sql,parametros=None):
+    con=conectar_db()
     try:
-        with conexion.cursor(cursor_factory=RealDictCursor) as cursor:
-            cursor.execute(sql, parametros or ())
-            resultado = None
-            if cursor.description:
-                resultado = cursor.fetchall()
-            conexion.commit()
-            return [dict(fila) for fila in resultado] if resultado else []
+        with con.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(sql,parametros or ())
+            rows=cur.fetchall() if cur.description else []
+        con.commit()
+        return [dict(r) for r in rows]
     except Exception:
-        conexion.rollback()
+        con.rollback()
         raise
-    finally:
-        conexion.close()
+    finally: con.close()
 
+def euros(v):
+    try:return f"{float(v):,.2f} €".replace(",","X").replace(".",",").replace("X",".")
+    except:return "0,00 €"
 
-def euros(valor):
-    try:
-        return f"{float(valor):,.2f} €".replace(",", "X").replace(".", ",").replace("X", ".")
-    except Exception:
-        return "0,00 €"
-
-
-# ============================================================
-# SEGURIDAD: PIN DEL PROPIETARIO
-# ============================================================
-
-def crear_hash_pin(pin, salt=None):
-    """Genera un hash PBKDF2 del PIN con una sal aleatoria."""
-    if salt is None:
-        salt = secrets.token_bytes(16)
-
-    pin_hash = hashlib.pbkdf2_hmac(
-        "sha256",
-        pin.encode("utf-8"),
-        salt,
-        600_000
-    )
-
-    return salt.hex(), pin_hash.hex()
-
+# ---------------------- SECURITY ----------------------
+def crear_hash_pin(pin,salt=None):
+    salt=salt or secrets.token_bytes(16)
+    return salt.hex(),hashlib.pbkdf2_hmac("sha256",pin.encode(),salt,600_000).hex()
 
 def obtener_credencial_pin():
-    filas = consultar("""
-        SELECT salt, pin_hash
-        FROM public.seguridad
-        WHERE id = 1
-    """)
-
-    if not filas:
-        return None
-
-    return filas[0]
-
+    rows=consultar("SELECT salt,pin_hash FROM public.seguridad WHERE id=1")
+    return rows[0] if rows else None
 
 def verificar_pin(pin):
-    credencial = obtener_credencial_pin()
-
-    if not credencial:
-        return False
-
+    cred=obtener_credencial_pin()
+    if not cred:return False
     try:
-        salt = bytes.fromhex(credencial["salt"])
-        hash_guardado = bytes.fromhex(credencial["pin_hash"])
-
-        hash_introducido = hashlib.pbkdf2_hmac(
-            "sha256",
-            pin.encode("utf-8"),
-            salt,
-            600_000
-        )
-
-        return hmac.compare_digest(hash_introducido, hash_guardado)
-
-    except (ValueError, TypeError, KeyError):
-        return False
-
+        hash_pin=hashlib.pbkdf2_hmac("sha256",pin.encode(),bytes.fromhex(cred["salt"]),600_000)
+        return hmac.compare_digest(hash_pin,bytes.fromhex(cred["pin_hash"]))
+    except (ValueError,TypeError,KeyError):return False
 
 def guardar_nuevo_pin(pin):
-    salt_hex, hash_hex = crear_hash_pin(pin)
+    salt,h=crear_hash_pin(pin)
+    ejecutar("""INSERT INTO public.seguridad(id,salt,pin_hash,actualizado) VALUES(1,%s,%s,NOW())
+    ON CONFLICT(id) DO UPDATE SET salt=EXCLUDED.salt,pin_hash=EXCLUDED.pin_hash,actualizado=NOW()""",(salt,h))
 
-    ejecutar("""
-        INSERT INTO public.seguridad (id, salt, pin_hash, actualizado)
-        VALUES (1, %s, %s, NOW())
-        ON CONFLICT (id)
-        DO UPDATE SET
-            salt = EXCLUDED.salt,
-            pin_hash = EXCLUDED.pin_hash,
-            actualizado = NOW()
-    """, (salt_hex, hash_hex))
-
-
-# ============================================================
-# INICIALIZACIÓN DE TABLAS
-# ============================================================
-
+# ---------------------- INITIALIZATION ----------------------
 def inicializar_base_datos():
-
-    conexion = conectar_db()
-
+    con=conectar_db()
     try:
-        with conexion.cursor() as cursor:
-
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS public.servicios (
-                    id SERIAL PRIMARY KEY,
-                    nombre VARCHAR(150) NOT NULL UNIQUE,
-                    precio NUMERIC(10,2) NOT NULL DEFAULT 0,
-                    activo BOOLEAN NOT NULL DEFAULT TRUE
-                );
-            """)
-
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS public.configuracion_web (
-                    clave VARCHAR(100) PRIMARY KEY,
-                    valor TEXT
-                );
-            """)
-
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS public.citas (
-                    id SERIAL PRIMARY KEY,
-                    cliente VARCHAR(150) NOT NULL,
-                    telefono VARCHAR(50) NOT NULL,
-                    servicio VARCHAR(150) NOT NULL,
-                    precio NUMERIC(10,2) NOT NULL DEFAULT 0,
-                    fecha DATE NOT NULL,
-                    hora TIME NOT NULL,
-                    pagada BOOLEAN NOT NULL DEFAULT FALSE
-                );
-            """)
-
-            # Supabase utiliza PostgreSQL. Primero comprobamos si ya hay
-            # duplicados antiguos antes de crear la restricción única.
-            cursor.execute("""
-                SELECT fecha, hora, COUNT(*) AS cantidad
-                FROM public.citas
-                GROUP BY fecha, hora
-                HAVING COUNT(*) > 1
-                LIMIT 1
-            """)
-            duplicado_existente = cursor.fetchone()
-
-            if duplicado_existente:
-                raise RuntimeError(
-                    "Hay citas duplicadas en Supabase para la fecha "
-                    f"{duplicado_existente[0]} y la hora "
-                    f"{duplicado_existente[1]}. Hay que resolver ese "
-                    "duplicado antes de activar la protección automática."
-                )
-
-            # Impide duplicados incluso con dos clientes confirmando a la vez.
-            cursor.execute("""
-                CREATE UNIQUE INDEX IF NOT EXISTS uq_citas_fecha_hora
-                ON public.citas (fecha, hora);
-            """)
-
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS public.productos (
-                    id SERIAL PRIMARY KEY,
-                    nombre VARCHAR(150) NOT NULL,
-                    precio NUMERIC(10,2) NOT NULL DEFAULT 0,
-                    activo BOOLEAN NOT NULL DEFAULT TRUE
-                );
-            """)
-
-            # Esta tabla guarda el hash del PIN, nunca el PIN en texto plano.
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS public.seguridad (
-                    id SMALLINT PRIMARY KEY CHECK (id = 1),
-                    salt VARCHAR(64) NOT NULL,
-                    pin_hash VARCHAR(128) NOT NULL,
-                    actualizado TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                );
-            """)
-
-            cursor.execute("""
-                INSERT INTO public.servicios
-                    (nombre, precio, activo)
-                VALUES
-                    ('Corte de caballero', 12, TRUE),
-                    ('Corte infantil', 9, TRUE),
-                    ('Arreglo de barba', 7, TRUE),
-                    ('Corte + barba', 17, TRUE)
-                ON CONFLICT (nombre) DO NOTHING;
-            """)
-
-            valores_iniciales = {
-                "nombre": "PELUQUERÍA",
-                "eslogan": "TU ESTILO, NUESTRA PASIÓN",
-                "descripcion": "Cuidamos cada detalle para que salgas con tu mejor imagen.",
-                "direccion": "",
-                "telefono": "",
-                "whatsapp": "",
-                "horario": "Lunes a viernes: 09:00 - 14:00 y 16:00 - 20:00",
-                "logo": "",
-                "foto_portada": "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=1800&q=85",
-                "galeria": "",
-                "sobre_nosotros": "Somos una peluquería dedicada al cuidado de tu imagen. Nuestro objetivo es ofrecerte un servicio profesional y personalizado."
-            }
-
-            for clave, valor in valores_iniciales.items():
-                cursor.execute("""
-                    INSERT INTO public.configuracion_web (clave, valor)
-                    VALUES (%s, %s)
-                    ON CONFLICT (clave) DO NOTHING;
-                """, (clave, valor))
-
-            # Solo se establece el PIN inicial si todavía no existe.
-            # Si OWNER_PIN está definido en Streamlit Secrets se utiliza ese valor.
-            pin_inicial = str(st.secrets.get("OWNER_PIN", "1234")).strip()
-            cursor.execute("""
-                SELECT id
-                FROM public.seguridad
-                WHERE id = 1
-            """)
-            existe_pin = cursor.fetchone()
-
-            if not existe_pin:
-                salt = secrets.token_bytes(16)
-                pin_hash = hashlib.pbkdf2_hmac(
-                    "sha256",
-                    pin_inicial.encode("utf-8"),
-                    salt,
-                    600_000
-                )
-
-                cursor.execute("""
-                    INSERT INTO public.seguridad
-                        (id, salt, pin_hash, actualizado)
-                    VALUES (1, %s, %s, NOW())
-                    ON CONFLICT (id) DO NOTHING
-                """, (salt.hex(), pin_hash.hex()))
-
-        conexion.commit()
-
-    except Exception:
-        conexion.rollback()
-        raise
-
-    finally:
-        conexion.close()
-
-
-# ============================================================
-# CONFIGURACIÓN DE LA PELUQUERÍA
-# ============================================================
+        with con.cursor() as cur:
+            cur.execute("""CREATE TABLE IF NOT EXISTS public.servicios(id SERIAL PRIMARY KEY,nombre VARCHAR(150) NOT NULL UNIQUE,precio NUMERIC(10,2) NOT NULL DEFAULT 0,activo BOOLEAN NOT NULL DEFAULT TRUE)""")
+            cur.execute("""CREATE TABLE IF NOT EXISTS public.configuracion_web(clave VARCHAR(100) PRIMARY KEY,valor TEXT)""")
+            cur.execute("""CREATE TABLE IF NOT EXISTS public.citas(id SERIAL PRIMARY KEY,cliente VARCHAR(150) NOT NULL,telefono VARCHAR(50) NOT NULL,servicio VARCHAR(150) NOT NULL,precio NUMERIC(10,2) NOT NULL DEFAULT 0,fecha DATE NOT NULL,hora TIME NOT NULL,pagada BOOLEAN NOT NULL DEFAULT FALSE)""")
+            cur.execute("""CREATE TABLE IF NOT EXISTS public.productos(id SERIAL PRIMARY KEY,nombre VARCHAR(150) NOT NULL,precio NUMERIC(10,2) NOT NULL DEFAULT 0,activo BOOLEAN NOT NULL DEFAULT TRUE)""")
+            cur.execute("""CREATE TABLE IF NOT EXISTS public.seguridad(id SMALLINT PRIMARY KEY CHECK(id=1),salt VARCHAR(64) NOT NULL,pin_hash VARCHAR(128) NOT NULL,actualizado TIMESTAMPTZ NOT NULL DEFAULT NOW())""")
+            cur.execute("""SELECT fecha,hora,COUNT(*) FROM public.citas GROUP BY fecha,hora HAVING COUNT(*)>1 LIMIT 1""")
+            if cur.fetchone(): raise RuntimeError("Existen citas duplicadas por fecha y hora; resuélvelas antes de activar el índice.")
+            cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_citas_fecha_hora ON public.citas(fecha,hora)")
+            cur.execute("""INSERT INTO public.servicios(nombre,precio,activo) VALUES('Corte de caballero',12,TRUE),('Corte infantil',9,TRUE),('Arreglo de barba',7,TRUE),('Corte + barba',17,TRUE) ON CONFLICT(nombre) DO NOTHING""")
+            defaults={"nombre":"PELUQUERÍA","eslogan":"TU ESTILO, NUESTRA PASIÓN","descripcion":"Cuidamos cada detalle para que salgas con tu mejor imagen.","direccion":"","telefono":"","whatsapp":"","horario":"Lunes a viernes: 09:00 - 14:00 y 16:00 - 20:00","logo":"","foto_portada":"https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=1800&q=85","galeria":"","sobre_nosotros":"Somos una peluquería dedicada al cuidado de tu imagen."}
+            for k,v in defaults.items():cur.execute("INSERT INTO public.configuracion_web(clave,valor) VALUES(%s,%s) ON CONFLICT(clave) DO NOTHING",(k,v))
+            cur.execute("SELECT id FROM public.seguridad WHERE id=1")
+            if not cur.fetchone():
+                pin=str(st.secrets.get("OWNER_PIN","1234")).strip()
+                salt=secrets.token_bytes(16); hashed=hashlib.pbkdf2_hmac("sha256",pin.encode(),salt,600_000)
+                cur.execute("INSERT INTO public.seguridad(id,salt,pin_hash) VALUES(1,%s,%s)",(salt.hex(),hashed.hex()))
+        con.commit()
+    except Exception:con.rollback();raise
+    finally:con.close()
 
 def obtener_configuracion():
+    return {r["clave"]:r["valor"] or "" for r in consultar("SELECT clave,valor FROM public.configuracion_web")}
 
-    filas = consultar("""
-        SELECT clave, valor
-        FROM public.configuracion_web
-    """)
-
-    configuracion = {}
-
-    for fila in filas:
-        configuracion[fila["clave"]] = fila["valor"] or ""
-
-    return configuracion
-
-
-def guardar_configuracion(clave, valor):
-
-    ejecutar("""
-        INSERT INTO public.configuracion_web (clave, valor)
-        VALUES (%s, %s)
-        ON CONFLICT (clave)
-        DO UPDATE SET valor = EXCLUDED.valor
-    """, (clave, str(valor)))
-
-
-# ============================================================
-# SERVICIOS
-# ============================================================
+def guardar_configuracion(k,v):
+    ejecutar("INSERT INTO public.configuracion_web(clave,valor) VALUES(%s,%s) ON CONFLICT(clave) DO UPDATE SET valor=EXCLUDED.valor",(k,str(v)))
 
 def obtener_servicios(activos=False):
-
-    if activos:
-        return consultar("""
-            SELECT id, nombre, precio, activo
-            FROM public.servicios
-            WHERE activo = TRUE
-            ORDER BY nombre
-        """)
-
-    return consultar("""
-        SELECT id, nombre, precio, activo
-        FROM public.servicios
-        ORDER BY nombre
-    """)
-
-
-# ============================================================
-# PRODUCTOS
-# ============================================================
+    return consultar("SELECT id,nombre,precio,activo FROM public.servicios "+("WHERE activo=TRUE " if activos else "")+"ORDER BY nombre")
 
 def obtener_productos(activos=False):
+    return consultar("SELECT id,nombre,precio,activo FROM public.productos "+("WHERE activo=TRUE " if activos else "")+"ORDER BY nombre")
 
-    if activos:
-        return consultar("""
-            SELECT id, nombre, precio, activo
-            FROM public.productos
-            WHERE activo = TRUE
-            ORDER BY nombre
-        """)
-
-    return consultar("""
-        SELECT id, nombre, precio, activo
-        FROM public.productos
-        ORDER BY nombre
-    """)
-
-
-# ============================================================
-# HORARIOS DE RESERVA
-# ============================================================
-
+# ---------------------- SCHEDULING ----------------------
 def generar_horarios():
+    slots=[]
+    for start,end in [(9*60,14*60),(16*60,20*60)]:
+        for m in range(start,end,30):slots.append(time(m//60,m%60).strftime("%H:%M"))
+    return slots
 
-    horarios = []
+def hora_texto(v):return v.strftime("%H:%M") if hasattr(v,"strftime") else str(v)[:5]
 
-    # Mañana: 09:00 a 14:00
-    for minutos in range(9 * 60, 14 * 60, 30):
-        hora = time(minutos // 60, minutos % 60)
-        horarios.append(hora.strftime("%H:%M"))
+def obtener_horas_ocupadas(fecha_sel):
+    return [hora_texto(r["hora"]) for r in consultar("SELECT hora FROM public.citas WHERE fecha=%s",(fecha_sel,))]
 
-    # Tarde: 16:00 a 20:00
-    for minutos in range(16 * 60, 20 * 60, 30):
-        hora = time(minutos // 60, minutos % 60)
-        horarios.append(hora.strftime("%H:%M"))
+def horarios_disponibles(fecha_sel):
+    busy=obtener_horas_ocupadas(fecha_sel); now=datetime.now().strftime("%H:%M")
+    return [h for h in generar_horarios() if h not in busy and (fecha_sel!=date.today() or h>now)]
 
-    return horarios
-
-
-def hora_texto(valor):
-    if hasattr(valor, "strftime"):
-        return valor.strftime("%H:%M")
-    return str(valor)[:5]
-
-
-def obtener_horas_ocupadas(fecha_seleccionada):
-
-    filas = consultar("""
-        SELECT hora
-        FROM public.citas
-        WHERE fecha = %s
-    """, (fecha_seleccionada,))
-
-    return [hora_texto(fila["hora"]) for fila in filas]
-
-
-def horarios_disponibles(fecha_seleccionada):
-
-    todos = generar_horarios()
-    ocupados = obtener_horas_ocupadas(fecha_seleccionada)
-
-    disponibles = [
-        hora for hora in todos
-        if hora not in ocupados
-    ]
-
-    if fecha_seleccionada == date.today():
-        hora_actual = datetime.now().strftime("%H:%M")
-
-        disponibles = [
-            hora for hora in disponibles
-            if hora > hora_actual
-        ]
-
-    return disponibles
-
-
-# ============================================================
-# RESERVA ATÓMICA EN SUPABASE
-# ============================================================
-
-def reservar_cita(cliente, telefono, servicio, precio, fecha_reserva, hora_reserva):
-    """Guarda una cita sin permitir duplicados en Supabase/PostgreSQL."""
-    conexion = conectar_db()
+def reservar_cita(cliente,telefono,servicio,precio,fecha_reserva,hora_reserva):
+    con=conectar_db()
     try:
-        with conexion.cursor(cursor_factory=RealDictCursor) as cursor:
-            cursor.execute("""
-                INSERT INTO public.citas
-                    (cliente, telefono, servicio, precio, fecha, hora, pagada)
-                VALUES (%s, %s, %s, %s, %s, %s, FALSE)
-                ON CONFLICT (fecha, hora) DO NOTHING
-                RETURNING id
-            """, (
-                cliente, telefono, servicio, precio,
-                fecha_reserva, hora_reserva
-            ))
-            guardada = cursor.fetchone()
-        conexion.commit()
-        return guardada is not None
-    except Exception:
-        conexion.rollback()
-        raise
-    finally:
-        conexion.close()
+        with con.cursor() as cur:
+            cur.execute("""INSERT INTO public.citas(cliente,telefono,servicio,precio,fecha,hora,pagada)
+            VALUES(%s,%s,%s,%s,%s,%s,FALSE) ON CONFLICT(fecha,hora) DO NOTHING RETURNING id""",
+            (cliente,telefono,servicio,precio,fecha_reserva,hora_reserva))
+            saved=cur.fetchone()
+        con.commit();return saved is not None
+    except Exception:con.rollback();raise
+    finally:con.close()
 
+# ---------------------- SESSION ----------------------
+for k,v in {"pagina":"Inicio","admin_autenticado":False,"mensaje_pin":"","login_intentos":0}.items():
+    if k not in st.session_state:st.session_state[k]=v
 
-# ============================================================
-# SESIÓN
-# ============================================================
+def ir_a(p):
+    st.session_state.pagina=p;st.rerun()
 
-if "pagina" not in st.session_state:
-    st.session_state.pagina = "Inicio"
-
-if "admin_autenticado" not in st.session_state:
-    st.session_state.admin_autenticado = False
-
-if "mensaje_pin" not in st.session_state:
-    st.session_state.mensaje_pin = ""
-
-
-def ir_a(pagina):
-    st.session_state.pagina = pagina
-    st.rerun()
-
-
-# ============================================================
-# ENCABEZADO Y NAVEGACIÓN
-# ============================================================
-
+# ---------------------- COMMON UI ----------------------
 def mostrar_encabezado(config):
-
-    logo = config.get("logo", "").strip()
-    nombre = config.get("nombre", "PELUQUERÍA")
-
-    c1, c2 = st.columns([1, 3])
-
+    name=escape(config.get("nombre","PELUQUERÍA"))
+    c1,c2=st.columns([1,3])
     with c1:
-        if logo:
-            try:
-                st.image(logo, width=150)
-            except Exception:
-                st.markdown(f"## ✂️ {escape(nombre)}")
-        else:
-            st.markdown(f"## ✂️ {escape(nombre)}")
-
-    with c2:
-        st.markdown(
-            f"<div style='text-align:right;padding-top:18px;color:#d6ad60;font-weight:700;letter-spacing:2px;'>"
-            f"{escape(nombre.upper())}</div>",
-            unsafe_allow_html=True
-        )
-
-    st.markdown("<hr>", unsafe_allow_html=True)
-
-    columnas = st.columns(6, gap="small", wrap=False)
-
-    paginas = [
-        ("Inicio", "⌂ Inicio"),
-        ("Servicios", "✂ Servicios"),
-        ("Reservar", "📅 Reservar"),
-        ("Galería", "📸 Galería"),
-        ("Contacto", "📍 Contacto"),
-        ("Propietario", "🔐 Propietario")
-    ]
-
-    for columna, (pagina, texto) in zip(columnas, paginas):
-        with columna:
-            if st.button(
-                texto,
-                key=f"nav_{pagina}",
-                use_container_width=True
-            ):
-                ir_a(pagina)
-
-
-# ============================================================
-# PIE DE PÁGINA
-# ============================================================
+        if config.get("logo","").strip():
+            try:st.image(config["logo"],width=130)
+            except:st.markdown(f"## ✂️ {name}")
+        else:st.markdown(f"## ✂️ {name}")
+    with c2:st.markdown(f"<div style='text-align:right;padding-top:18px;color:#dfcca5;font-weight:700;letter-spacing:2px'>{name.upper()}</div>",unsafe_allow_html=True)
+    st.markdown("<hr>",unsafe_allow_html=True)
+    pages=[("Inicio","⌂ Inicio"),("Servicios","✂ Servicios"),("Reservar","📅 Reservar"),("Galería","📸 Galería"),("Contacto","📍 Contacto"),("Propietario","🔐 Propietario")]
+    cols=st.columns(6,gap="small")
+    for col,(p,label) in zip(cols,pages):
+        with col:
+            if st.button(label,key="nav_"+p,use_container_width=True):ir_a(p)
 
 def mostrar_footer(config):
+    st.markdown(f"<div class='footer'><strong>{escape(config.get('nombre','PELUQUERÍA'))}</strong><br><br>Peluquería · Barbería<br><span class='small-text'>© {datetime.now().year} Todos los derechos reservados</span></div>",unsafe_allow_html=True)
 
-    nombre = escape(config.get("nombre", "PELUQUERÍA"))
+def section(title,subtitle=""):
+    st.markdown(f"<div class='section-title'><h2>{escape(title)}</h2><div class='gold-line'></div><p>{escape(subtitle)}</p></div>",unsafe_allow_html=True)
 
-    st.markdown(f"""
-    <div class="footer">
-        <strong>{nombre}</strong><br><br>
-        Peluquería · Barbería<br>
-        <span class="small-text">
-        © {datetime.now().year} Todos los derechos reservados
-        </span>
-    </div>
-    """, unsafe_allow_html=True)
-
-
-# ============================================================
-# PÁGINA DE INICIO
-# ============================================================
-
+# ---------------------- PUBLIC PAGES ----------------------
 def pagina_inicio(config):
-
-    nombre = escape(config.get("nombre", "PELUQUERÍA"))
-    eslogan = escape(config.get("eslogan", "TU ESTILO, NUESTRA PASIÓN"))
-    descripcion = escape(config.get("descripcion", "Cuidamos cada detalle para ti."))
-
-    foto = config.get("foto_portada", "").strip()
-    logo = config.get("logo", "").strip()
-
-    if not foto:
-        foto = "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=1800&q=85"
-
-    logo_html = (
-        f"<img class='hero-logo' src='{escape(logo, quote=True)}' alt='Logotipo de {nombre}'>"
-        if logo else ""
-    )
-
-    # La portada se renderiza con st.html (no como Markdown) para evitar
-    # que Streamlit muestre literalmente las etiquetas <div>, <h1> y <p>.
-    html_portada = f"""
-    <div class="hero" style="background-image:url('{escape(foto, quote=True)}');">
-        <div class="hero-content">
-            {logo_html}
-            <div class="hero-label">{nombre}</div>
-            <h1>{eslogan}</h1>
-            <div class="gold-line"></div>
-            <p>{descripcion}</p>
-        </div>
-    </div>
-    """
-
-    renderizador_html = getattr(st, "html", None)
-    if callable(renderizador_html):
-        renderizador_html(html_portada)
-    else:
-        # Compatibilidad con versiones antiguas de Streamlit.
-        st.markdown(html_portada, unsafe_allow_html=True)
-
-    centro = st.columns([1, 2, 1])
-
-    with centro[1]:
-        if st.button(
-            "📅  RESERVAR MI CITA",
-            use_container_width=True,
-            key="inicio_reservar"
-        ):
-            ir_a("Reservar")
-
-    st.markdown("""
-    <div class="section-title">
-        <h2>BIENVENIDO</h2>
-        <div class="gold-line"></div>
-        <p>Profesionalidad, estilo y atención personalizada.</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    c1, c2, c3 = st.columns(3)
-
-    with c1:
-        st.markdown("""
-        <div class="info-card">
-            <h3>✂️ Estilo</h3>
-            <p>Trabajamos cada corte cuidando los detalles y adaptándonos a tu personalidad.</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with c2:
-        st.markdown("""
-        <div class="info-card">
-            <h3>⭐ Profesionalidad</h3>
-            <p>Atención cercana y un servicio pensado para que disfrutes de tu visita.</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with c3:
-        st.markdown("""
-        <div class="info-card">
-            <h3>📅 Reserva online</h3>
-            <p>Elige tu servicio, selecciona el día y reserva tu cita cómodamente.</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.markdown("""
-    <div class="section-title">
-        <h2>NUESTROS SERVICIOS</h2>
-        <div class="gold-line"></div>
-        <p>Descubre nuestros cortes y tratamientos.</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    servicios = obtener_servicios(activos=True)
-
-    if servicios:
-        columnas = st.columns(min(3, len(servicios)))
-
-        for i, servicio in enumerate(servicios):
-            with columnas[i % len(columnas)]:
-                st.markdown(f"""
-                <div class="info-card">
-                    <h3>{escape(servicio['nombre'])}</h3>
-                    <h2>{euros(servicio['precio'])}</h2>
-                </div>
-                """, unsafe_allow_html=True)
-
-    else:
-        st.info("Próximamente publicaremos nuestros servicios.")
-
-    centro = st.columns([1, 2, 1])
-
-    with centro[1]:
-        if st.button(
-            "VER TODOS LOS SERVICIOS",
-            use_container_width=True,
-            key="inicio_servicios"
-        ):
-            ir_a("Servicios")
-
-
-# ============================================================
-# PÁGINA DE SERVICIOS
-# ============================================================
+    name=escape(config.get("nombre","PELUQUERÍA")); slogan=escape(config.get("eslogan","TU ESTILO, NUESTRA PASIÓN")); desc=escape(config.get("descripcion","Cuidamos cada detalle."))
+    photo=escape(config.get("foto_portada","").strip() or "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=1800&q=85",quote=True)
+    logo=config.get("logo","").strip()
+    logo_html=f"<img class='hero-logo' src='{escape(logo,quote=True)}' alt='Logo'>" if logo else ""
+    html=f"<div class='hero' style=\"background-image:url('{photo}')\"><div class='hero-content'>{logo_html}<div class='hero-label'>{name}</div><h1>{slogan}</h1><div class='gold-line'></div><p>{desc}</p></div></div>"
+    if callable(getattr(st,"html",None)):st.html(html)
+    else:st.markdown(html,unsafe_allow_html=True)
+    mid=st.columns([1,2,1])
+    with mid[1]:
+        if st.button("📅 RESERVAR MI CITA",use_container_width=True,key="home_book"):ir_a("Reservar")
+    section("BIENVENIDO","Profesionalidad, estilo y atención personalizada.")
+    cols=st.columns(3)
+    for col,(title,txt) in zip(cols,[("✂️ Estilo","Cuidamos cada corte y nos adaptamos a tu personalidad."),("⭐ Profesionalidad","Atención cercana y servicio profesional."),("📅 Reserva online","Reserva cómodamente desde cualquier dispositivo.")]):
+        with col:st.markdown(f"<div class='info-card'><h3>{title}</h3><p>{txt}</p></div>",unsafe_allow_html=True)
+    section("NUESTROS SERVICIOS","Descubre nuestros cortes y tratamientos.")
+    services=obtener_servicios(True)
+    if services:
+        cols=st.columns(min(3,len(services)))
+        for i,s in enumerate(services):
+            with cols[i%len(cols)]:st.markdown(f"<div class='info-card'><h3>{escape(s['nombre'])}</h3><h2>{euros(s['precio'])}</h2></div>",unsafe_allow_html=True)
+    else:st.info("Próximamente publicaremos nuestros servicios.")
+    if st.button("VER TODOS LOS SERVICIOS",use_container_width=True,key="home_services"):ir_a("Servicios")
 
 def pagina_servicios():
-
-    st.markdown("""
-    <div class="section-title">
-        <h2>NUESTROS SERVICIOS Y TARIFAS</h2>
-        <div class="gold-line"></div>
-        <p>Elige el servicio que mejor se adapta a ti.</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    servicios = obtener_servicios(activos=True)
-
-    if not servicios:
-        st.info("Actualmente no hay servicios publicados.")
-        return
-
-    columnas = st.columns(3)
-
-    for i, servicio in enumerate(servicios):
-
-        with columnas[i % 3]:
-
-            st.markdown(f"""
-            <div class="info-card" style="margin-bottom:20px;">
-                <h3>✂️ {escape(servicio['nombre'])}</h3>
-                <h2>{euros(servicio['precio'])}</h2>
-                <p class="small-text">Servicio disponible bajo reserva.</p>
-            </div>
-            """, unsafe_allow_html=True)
-
-    st.markdown("---")
-
-    if st.button("📅 RESERVAR CITA", use_container_width=True):
-        ir_a("Reservar")
-
-
-# ============================================================
-# PÁGINA DE RESERVAS
-# ============================================================
+    section("NUESTROS SERVICIOS Y TARIFAS","Elige el servicio que mejor se adapta a ti.")
+    services=obtener_servicios(True)
+    if not services:st.info("No hay servicios publicados.");return
+    cols=st.columns(3)
+    for i,s in enumerate(services):
+        with cols[i%3]:st.markdown(f"<div class='info-card'><h3>✂️ {escape(s['nombre'])}</h3><h2>{euros(s['precio'])}</h2><p class='small-text'>Disponible bajo reserva.</p></div>",unsafe_allow_html=True)
+    if st.button("📅 RESERVAR CITA",use_container_width=True):ir_a("Reservar")
 
 def pagina_reservar():
-
-    st.markdown("""
-    <div class="section-title">
-        <h2>RESERVA TU CITA</h2>
-        <div class="gold-line"></div>
-        <p>Reserva tu próximo corte de forma rápida y sencilla.</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    servicios = obtener_servicios(activos=True)
-
-    if not servicios:
-        st.warning("No hay servicios disponibles para reservar.")
-        return
-
-    nombres = [s["nombre"] for s in servicios]
-
-    # IMPORTANTE:
-    # Los campos ya no están dentro de st.form(). Así Streamlit
-    # actualiza la página al cambiar la fecha y consulta al momento
-    # los horarios disponibles para ese día.
-
-    cliente = st.text_input(
-        "Nombre y apellidos",
-        placeholder="Escribe tu nombre",
-        key="reserva_cliente"
-    )
-
-    telefono = st.text_input(
-        "Teléfono",
-        placeholder="Tu número de teléfono",
-        key="reserva_telefono"
-    )
-
-    servicio_nombre = st.selectbox(
-        "Selecciona tu servicio",
-        nombres,
-        key="reserva_servicio"
-    )
-
-    servicio_elegido = next(
-        s for s in servicios
-        if s["nombre"] == servicio_nombre
-    )
-
-    st.markdown(
-        f"<h3 style='text-align:center;'>Precio: {euros(servicio_elegido['precio'])}</h3>",
-        unsafe_allow_html=True
-    )
-
-    fecha_seleccionada = st.date_input(
-        "Selecciona el día",
-        min_value=date.today(),
-        value=date.today(),
-        key="reserva_fecha"
-    )
-
-    # La consulta se vuelve a ejecutar automáticamente al cambiar la fecha.
-    disponibles = horarios_disponibles(fecha_seleccionada)
-
-    if disponibles:
-        # La clave incluye la fecha para que, al cambiar de día,
-        # no se conserve por error la hora elegida para otra fecha.
-        hora_seleccionada = st.selectbox(
-            "Selecciona la hora",
-            disponibles,
-            index=None,
-            placeholder="Elige una hora disponible",
-            key=f"reserva_hora_{fecha_seleccionada.isoformat()}"
-        )
-    else:
-        hora_seleccionada = None
-        st.warning("No quedan horas disponibles para este día.")
-
-    aceptar = st.checkbox(
-        "He leído y acepto la política de privacidad.",
-        key="reserva_aceptar_privacidad"
-    )
-
-    enviar = st.button(
-        "CONFIRMAR MI RESERVA",
-        use_container_width=True,
-        key="confirmar_reserva"
-    )
-
-    if enviar:
-
-        if not cliente.strip():
-            st.error("Introduce tu nombre.")
-
-        elif not telefono.strip():
-            st.error("Introduce tu teléfono.")
-
-        elif not aceptar:
-            st.error("Debes aceptar la política de privacidad.")
-
-        elif not hora_seleccionada:
-            st.error("Selecciona una hora disponible para reservar.")
-
-        elif hora_seleccionada not in horarios_disponibles(fecha_seleccionada):
-            st.error("Esa hora ya no está disponible. Selecciona otra.")
-
+    section("RESERVA TU CITA","Reserva tu próximo corte de forma rápida y sencilla.")
+    services=obtener_servicios(True)
+    if not services:st.warning("No hay servicios disponibles.");return
+    client=st.text_input("Nombre y apellidos",placeholder="Escribe tu nombre",key="book_name")
+    phone=st.text_input("Teléfono",placeholder="Tu número de teléfono",key="book_phone")
+    selected=st.selectbox("Servicio",services,format_func=lambda s:s["nombre"],key="book_service")
+    st.markdown(f"<h3 style='text-align:center'>Precio: {euros(selected['precio'])}</h3>",unsafe_allow_html=True)
+    day=st.date_input("Día",min_value=date.today(),value=date.today(),key="book_day")
+    available=horarios_disponibles(day)
+    hour=st.selectbox("Hora disponible",available,index=None,placeholder="Selecciona una hora",key=f"book_hour_{day.isoformat()}") if available else None
+    if not available:st.warning("No quedan horarios disponibles.")
+    consent=st.checkbox("He leído y acepto la política de privacidad.",key="book_privacy")
+    if st.button("CONFIRMAR MI RESERVA",use_container_width=True,key="book_submit"):
+        if not client.strip():st.error("Introduce tu nombre.")
+        elif not phone.strip():st.error("Introduce tu teléfono.")
+        elif not consent:st.error("Debes aceptar la política de privacidad.")
+        elif not hour:st.error("Selecciona una hora.")
+        elif hour not in horarios_disponibles(day):st.error("La hora acaba de ocuparse. Selecciona otra.")
         else:
             try:
-                guardada = reservar_cita(
-                    cliente.strip(),
-                    telefono.strip(),
-                    servicio_elegido["nombre"],
-                    servicio_elegido["precio"],
-                    fecha_seleccionada,
-                    hora_seleccionada
-                )
-
-                if not guardada:
-                    st.error(
-                        "Lo sentimos, otro cliente acaba de reservar esa hora. "
-                        "Selecciona otro horario."
-                    )
-                    st.rerun()
-
+                ok=reservar_cita(client.strip(),phone.strip(),selected["nombre"],selected["precio"],day,hour)
+                if not ok:st.error("Ese horario acaba de reservarse. Prueba otro.");st.rerun()
                 else:
-                    st.success("¡Tu cita se ha reservado correctamente!")
-                    st.markdown(f"""
-                    <div class="info-card">
-                        <h2 style="text-align:center;">¡RESERVA CONFIRMADA!</h2>
-                        <div class="gold-line"></div>
-                        <p><strong>Cliente:</strong> {escape(cliente)}</p>
-                        <p><strong>Servicio:</strong> {escape(servicio_elegido['nombre'])}</p>
-                        <p><strong>Fecha:</strong> {fecha_seleccionada.strftime('%d/%m/%Y')}</p>
-                        <p><strong>Hora:</strong> {escape(hora_seleccionada)}</p>
-                        <h2 style="text-align:center;">{euros(servicio_elegido['precio'])}</h2>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-            except Exception as e:
-                st.error(f"No se ha podido guardar la reserva: {e}")
-
-
-# ============================================================
-# PÁGINA DE GALERÍA
-# ============================================================
+                    st.success("¡Cita reservada correctamente!")
+                    st.markdown(f"<div class='info-card'><h2 style='text-align:center'>RESERVA CONFIRMADA</h2><div class='gold-line'></div><p><b>Cliente:</b> {escape(client)}</p><p><b>Servicio:</b> {escape(selected['nombre'])}</p><p><b>Fecha:</b> {day.strftime('%d/%m/%Y')}</p><p><b>Hora:</b> {escape(hour)}</p><h2 style='text-align:center'>{euros(selected['precio'])}</h2></div>",unsafe_allow_html=True)
+            except Exception:st.error("No se pudo guardar la reserva. Comprueba la conexión e inténtalo de nuevo.")
 
 def pagina_galeria(config):
-
-    st.markdown("""
-    <div class="section-title">
-        <h2>NUESTRA GALERÍA</h2>
-        <div class="gold-line"></div>
-        <p>Conoce nuestro espacio y algunos de nuestros trabajos.</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    galeria = config.get("galeria", "").strip()
-
-    if galeria:
-
-        imagenes = [
-            url.strip()
-            for url in galeria.splitlines()
-            if url.strip().startswith(("http://", "https://"))
-        ]
-
-        if imagenes:
-
-            columnas = st.columns(2)
-
-            for i, imagen in enumerate(imagenes):
-                with columnas[i % 2]:
-                    st.image(imagen, use_container_width=True)
-
-        else:
-            st.info("Todavía no hay fotografías publicadas.")
-
+    section("NUESTRA GALERÍA","Conoce nuestro espacio y algunos de nuestros trabajos.")
+    urls=[u.strip() for u in config.get("galeria","").splitlines() if u.strip().startswith(("https://","http://"))]
+    if urls:
+        cols=st.columns(2)
+        for i,u in enumerate(urls):
+            with cols[i%2]:st.image(u,use_container_width=True)
     else:
-
-        st.markdown("""
-        <p style="text-align:center;color:#aaaaaa;">
-        Próximamente publicaremos fotografías de nuestros trabajos.
-        </p>
-        """, unsafe_allow_html=True)
-
-        st.image(
-            "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=1400&q=85",
-            use_container_width=True
-        )
-
-
-# ============================================================
-# PÁGINA DE CONTACTO
-# ============================================================
+        st.info("Próximamente publicaremos fotografías.")
+        st.image("https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=1400&q=85",use_container_width=True)
 
 def pagina_contacto(config):
-
-    st.markdown("""
-    <div class="section-title">
-        <h2>CONTACTO</h2>
-        <div class="gold-line"></div>
-        <p>Estamos aquí para atenderte.</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    direccion = config.get("direccion", "").strip()
-    telefono = config.get("telefono", "").strip()
-    whatsapp = config.get("whatsapp", "").strip()
-    horario = config.get("horario", "").strip()
-
-    c1, c2 = st.columns(2)
-
+    section("CONTACTO","Estamos aquí para atenderte.")
+    c1,c2=st.columns(2)
     with c1:
-
-        st.markdown("""
-        <div class="info-card">
-            <h3>📍 Nuestra ubicación</h3>
-        """, unsafe_allow_html=True)
-
-        st.write(direccion if direccion else "Dirección pendiente de configurar.")
-
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        st.markdown("""
-        <div class="info-card">
-            <h3>🕒 Horarios</h3>
-        """, unsafe_allow_html=True)
-
-        st.write(horario if horario else "Horario pendiente de configurar.")
-
-        st.markdown("</div>", unsafe_allow_html=True)
-
+        st.markdown(f"<div class='info-card'><h3>📍 Ubicación</h3><p>{escape(config.get('direccion','').strip() or 'Dirección pendiente')}</p><h3>🕒 Horarios</h3><p>{escape(config.get('horario','').strip() or 'Horario pendiente')}</p></div>",unsafe_allow_html=True)
     with c2:
+        st.markdown(f"<div class='info-card'><h3>📞 Teléfono</h3><p>{escape(config.get('telefono','').strip() or 'Teléfono pendiente')}</p></div>",unsafe_allow_html=True)
+        whatsapp=re.sub(r"\D","",config.get("whatsapp",""))
+        if whatsapp:st.link_button("💬 CONTACTAR POR WHATSAPP",f"https://wa.me/{whatsapp}",use_container_width=True)
+    if st.button("📅 RESERVAR CITA",use_container_width=True):ir_a("Reservar")
 
-        st.markdown("""
-        <div class="info-card">
-            <h3>📞 Teléfono</h3>
-        """, unsafe_allow_html=True)
-
-        st.write(telefono if telefono else "Teléfono pendiente de configurar.")
-
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        if whatsapp:
-
-            numero = re.sub(r"\D", "", whatsapp)
-
-            if numero:
-
-                st.markdown("<br>", unsafe_allow_html=True)
-
-                st.link_button(
-                    "💬 CONTACTAR POR WHATSAPP",
-                    f"https://wa.me/{numero}",
-                    use_container_width=True
-                )
-
-    st.markdown("---")
-
-    if st.button("📅 RESERVAR CITA", use_container_width=True):
-        ir_a("Reservar")
-
-
-# ============================================================
-# PANEL DE PROPIETARIO
-# ============================================================
-
+# ---------------------- ADMIN ----------------------
 def panel_cambiar_pin():
-
-    st.markdown("---")
-
-    with st.expander("🔐 CAMBIAR PIN DE ACCESO", expanded=False):
-
-        st.write(
-            "Cambia el PIN que utilizas para entrar al panel de propietario. "
-            "El PIN se almacena en la base de datos mediante un hash seguro."
-        )
-
-        with st.form("form_cambiar_pin"):
-
-            pin_actual = st.text_input(
-                "PIN actual",
-                type="password",
-                key="pin_actual_cambio"
-            )
-
-            pin_nuevo = st.text_input(
-                "Nuevo PIN (entre 4 y 12 cifras)",
-                type="password",
-                key="pin_nuevo_cambio"
-            )
-
-            confirmar_pin = st.text_input(
-                "Confirma el nuevo PIN",
-                type="password",
-                key="confirmar_pin_cambio"
-            )
-
-            cambiar = st.form_submit_button(
-                "GUARDAR NUEVO PIN",
-                use_container_width=True
-            )
-
-        if cambiar:
-
-            if not verificar_pin(pin_actual):
-                st.error("El PIN actual no es correcto.")
-
-            elif not pin_nuevo.isdigit() or not (4 <= len(pin_nuevo) <= 12):
-                st.error("El nuevo PIN debe contener entre 4 y 12 cifras.")
-
-            elif pin_nuevo != confirmar_pin:
-                st.error("La confirmación no coincide con el nuevo PIN.")
-
-            elif pin_nuevo == pin_actual:
-                st.error("El nuevo PIN debe ser diferente del actual.")
-
+    with st.expander("🔐 Cambiar PIN"):
+        with st.form("change_pin"):
+            old=st.text_input("PIN actual",type="password")
+            new=st.text_input("Nuevo PIN (4–12 cifras)",type="password")
+            confirm=st.text_input("Confirmar nuevo PIN",type="password")
+            submit=st.form_submit_button("GUARDAR PIN",use_container_width=True)
+        if submit:
+            if not verificar_pin(old):st.error("PIN actual incorrecto.")
+            elif not new.isdigit() or not 4<=len(new)<=12:st.error("El PIN debe tener de 4 a 12 cifras.")
+            elif new!=confirm:st.error("La confirmación no coincide.")
+            elif new==old:st.error("El nuevo PIN debe ser distinto.")
             else:
-                try:
-                    guardar_nuevo_pin(pin_nuevo)
-                    st.session_state.admin_autenticado = False
-                    st.session_state.mensaje_pin = (
-                        "PIN cambiado correctamente. Vuelve a entrar con tu nuevo PIN."
-                    )
-                    st.rerun()
-
-                except Exception:
-                    st.error("No se ha podido actualizar el PIN. Inténtalo de nuevo.")
-
+                guardar_nuevo_pin(new);st.session_state.admin_autenticado=False
+                st.session_state.mensaje_pin="PIN actualizado. Inicia sesión de nuevo.";st.rerun()
 
 def pagina_propietario():
-
     if not st.session_state.admin_autenticado:
-
-        if st.session_state.mensaje_pin:
-            st.success(st.session_state.mensaje_pin)
-            st.session_state.mensaje_pin = ""
-
-        st.markdown("""
-        <div class="section-title">
-            <h2>ACCESO DE PROPIETARIO</h2>
-            <div class="gold-line"></div>
-            <p>Introduce tu PIN para acceder al panel de gestión.</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-        with st.form("login_propietario"):
-
-            pin = st.text_input(
-                "PIN de acceso",
-                type="password"
-            )
-
-            entrar = st.form_submit_button(
-                "ENTRAR AL PANEL",
-                use_container_width=True
-            )
-
-        if entrar:
-
-            if verificar_pin(pin):
-                st.session_state.admin_autenticado = True
-                st.rerun()
-            else:
-                st.error("PIN incorrecto.")
-
+        if st.session_state.mensaje_pin:st.success(st.session_state.mensaje_pin);st.session_state.mensaje_pin=""
+        section("ACCESO DE PROPIETARIO","Introduce tu PIN para acceder al panel.")
+        with st.form("admin_login"):
+            pin=st.text_input("PIN de acceso",type="password")
+            submit=st.form_submit_button("ENTRAR AL PANEL",use_container_width=True)
+        if submit:
+            if st.session_state.login_intentos>=5:st.error("Demasiados intentos. Recarga la sesión más tarde.")
+            elif verificar_pin(pin):st.session_state.admin_autenticado=True;st.session_state.login_intentos=0;st.rerun()
+            else:st.session_state.login_intentos+=1;st.error("PIN incorrecto.")
         return
-
-    st.markdown("""
-    <div class="section-title">
-        <h2>PANEL DE ADMINISTRACIÓN</h2>
-        <div class="gold-line"></div>
-        <p>Gestiona tu peluquería desde un único lugar.</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    if st.button("CERRAR SESIÓN", key="cerrar_admin"):
-        st.session_state.admin_autenticado = False
-        st.rerun()
-
-    pestañas = st.tabs([
-        "📅 Citas",
-        "💰 Caja",
-        "✂️ Servicios",
-        "🧴 Productos",
-        "🌐 Web"
-    ])
-
-    with pestañas[0]:
-        panel_citas()
-
-    with pestañas[1]:
-        panel_caja()
-
-    with pestañas[2]:
-        panel_servicios()
-
-    with pestañas[3]:
-        panel_productos()
-
-    with pestañas[4]:
-        panel_web()
-
+    section("PANEL DE ADMINISTRACIÓN","Gestiona tu peluquería desde un único lugar.")
+    if st.button("CERRAR SESIÓN",key="admin_logout"):st.session_state.admin_autenticado=False;st.rerun()
+    tabs=st.tabs(["📊 Resumen","📅 Citas","💰 Caja","✂️ Servicios","🧴 Productos","🌐 Web"])
+    with tabs[0]:panel_resumen()
+    with tabs[1]:panel_citas()
+    with tabs[2]:panel_caja()
+    with tabs[3]:panel_servicios()
+    with tabs[4]:panel_productos()
+    with tabs[5]:panel_web()
     panel_cambiar_pin()
 
-
-# ============================================================
-# PANEL DE CITAS
-# ============================================================
+def panel_resumen():
+    today=date.today()
+    rows=consultar("SELECT precio,pagada FROM public.citas WHERE fecha=%s",(today,))
+    paid=sum((Decimal(str(x["precio"])) for x in rows if x["pagada"]),Decimal("0"))
+    due=sum((Decimal(str(x["precio"])) for x in rows if not x["pagada"]),Decimal("0"))
+    cols=st.columns(4)
+    cols[0].metric("Citas de hoy",len(rows));cols[1].metric("Cobrado hoy",euros(paid));cols[2].metric("Pendiente",euros(due));cols[3].metric("Servicios activos",len(obtener_servicios(True)))
+    st.markdown("### Próximas citas")
+    nexts=consultar("SELECT id,cliente,telefono,servicio,precio,fecha,hora,pagada FROM public.citas WHERE fecha >= %s ORDER BY fecha,hora LIMIT 8",(today,))
+    if not nexts:st.info("No hay próximas citas.")
+    for x in nexts:
+        with st.container(border=True):
+            a,b,c=st.columns([2,3,1])
+            a.markdown(f"### {x['fecha'].strftime('%d/%m')} · {hora_texto(x['hora'])}")
+            b.write(f"**{x['cliente']}** · {x['servicio']} · {euros(x['precio'])}")
+            c.success("Pagada") if x["pagada"] else c.warning("Pendiente")
 
 def panel_citas():
-
-    st.subheader("Gestión de citas")
-
-    fecha_consulta = st.date_input(
-        "Selecciona el día",
-        value=date.today(),
-        key="fecha_citas_admin"
-    )
-
-    citas = consultar("""
-        SELECT id, cliente, telefono, servicio, precio,
-               fecha, hora, pagada
-        FROM public.citas
-        WHERE fecha = %s
-        ORDER BY hora
-    """, (fecha_consulta,))
-
-    total_citas = len(citas)
-
-    total_cobrado = sum(
-        (Decimal(str(c["precio"])) for c in citas if c["pagada"]),
-        Decimal("0")
-    )
-
-    pendiente = sum(
-        (Decimal(str(c["precio"])) for c in citas if not c["pagada"]),
-        Decimal("0")
-    )
-
-    c1, c2, c3 = st.columns(3)
-
-    c1.metric("Citas del día", total_citas)
-    c2.metric("Cobrado", euros(total_cobrado))
-    c3.metric("Pendiente", euros(pendiente))
-
-    st.markdown("---")
-
-    if not citas:
-        st.info("No hay citas para este día.")
-        return
-
-    for cita in citas:
-
-        hora = hora_texto(cita["hora"])
-
+    st.subheader("Agenda de citas")
+    day=st.date_input("Día de agenda",value=date.today(),key="admin_appointments_day")
+    rows=consultar("SELECT id,cliente,telefono,servicio,precio,fecha,hora,pagada FROM public.citas WHERE fecha=%s ORDER BY hora",(day,))
+    paid=sum((Decimal(str(x["precio"])) for x in rows if x["pagada"]),Decimal("0"))
+    due=sum((Decimal(str(x["precio"])) for x in rows if not x["pagada"]),Decimal("0"))
+    a,b,c=st.columns(3);a.metric("Citas",len(rows));b.metric("Cobrado",euros(paid));c.metric("Pendiente",euros(due))
+    if not rows:st.info("No hay citas para este día.")
+    for x in rows:
         with st.container(border=True):
-
-            c1, c2, c3 = st.columns([2, 2, 1])
-
-            with c1:
-                st.markdown(f"### {hora}")
-                st.write(f"**Cliente:** {cita['cliente']}")
-                st.write(f"**Teléfono:** {cita['telefono']}")
-
-            with c2:
-                st.write(f"**Servicio:** {cita['servicio']}")
-                st.write(f"**Precio:** {euros(cita['precio'])}")
-
-                if cita["pagada"]:
-                    st.success("PAGADA")
-                else:
-                    st.warning("PENDIENTE DE COBRO")
-
-            with c3:
-
-                if not cita["pagada"]:
-
-                    if st.button(
-                        "COBRAR",
-                        key=f"cobrar_cita_{cita['id']}",
-                        use_container_width=True
-                    ):
-
-                        ejecutar("""
-                            UPDATE public.citas
-                            SET pagada = TRUE
-                            WHERE id = %s
-                        """, (cita["id"],))
-
-                        st.success("Cita cobrada.")
-                        st.rerun()
-
-
-# ============================================================
-# PANEL DE CAJA
-# ============================================================
+            a,b,c=st.columns([2,2,1])
+            a.markdown(f"### {hora_texto(x['hora'])}");a.write(f"**{x['cliente']}**");a.write(x["telefono"])
+            b.write(x["servicio"]);b.write(euros(x["precio"]))
+            if x["pagada"]:b.success("PAGADA")
+            else:
+                b.warning("PENDIENTE")
+                if c.button("COBRAR",key=f"pay_{x['id']}",use_container_width=True):
+                    ejecutar("UPDATE public.citas SET pagada=TRUE WHERE id=%s",(x["id"],));st.rerun()
 
 def panel_caja():
-
     st.subheader("Caja y facturación")
-
-    hoy = date.today()
-
-    citas_hoy = consultar("""
-        SELECT precio, pagada
-        FROM public.citas
-        WHERE fecha = %s
-    """, (hoy,))
-
-    cobrado_hoy = sum(
-        (Decimal(str(c["precio"])) for c in citas_hoy if c["pagada"]),
-        Decimal("0")
-    )
-
-    pendiente_hoy = sum(
-        (Decimal(str(c["precio"])) for c in citas_hoy if not c["pagada"]),
-        Decimal("0")
-    )
-
-    c1, c2, c3 = st.columns(3)
-
-    c1.metric("Facturación cobrada hoy", euros(cobrado_hoy))
-    c2.metric("Pendiente hoy", euros(pendiente_hoy))
-    c3.metric("Citas hoy", len(citas_hoy))
-
-    st.markdown("---")
-
-    st.markdown("### Resumen mensual")
-
-    mes = st.selectbox(
-        "Mes",
-        list(range(1, 13)),
-        index=hoy.month - 1,
-        format_func=lambda x: [
-            "Enero", "Febrero", "Marzo", "Abril",
-            "Mayo", "Junio", "Julio", "Agosto",
-            "Septiembre", "Octubre", "Noviembre", "Diciembre"
-        ][x - 1]
-    )
-
-    anio = st.number_input(
-        "Año",
-        min_value=2024,
-        max_value=2100,
-        value=hoy.year,
-        step=1
-    )
-
-    primer_dia = date(int(anio), mes, 1)
-
-    if mes == 12:
-        primer_dia_siguiente = date(int(anio) + 1, 1, 1)
-    else:
-        primer_dia_siguiente = date(int(anio), mes + 1, 1)
-
-    citas_mes = consultar("""
-        SELECT id, cliente, telefono, servicio, precio,
-               fecha, hora, pagada
-        FROM public.citas
-        WHERE fecha >= %s AND fecha < %s
-        ORDER BY fecha DESC, hora DESC
-    """, (primer_dia, primer_dia_siguiente))
-
-    cobrado_mes = sum(
-        (Decimal(str(c["precio"])) for c in citas_mes if c["pagada"]),
-        Decimal("0")
-    )
-
-    pendiente_mes = sum(
-        (Decimal(str(c["precio"])) for c in citas_mes if not c["pagada"]),
-        Decimal("0")
-    )
-
-    c1, c2, c3 = st.columns(3)
-
-    c1.metric("Cobrado del mes", euros(cobrado_mes))
-    c2.metric("Pendiente del mes", euros(pendiente_mes))
-    c3.metric("Número de citas", len(citas_mes))
-
-    st.markdown("---")
-
-    st.markdown("### Histórico de citas")
-
-    if not citas_mes:
-        st.info("No hay movimientos en este mes.")
-        return
-
-    for cita in citas_mes:
-
+    today=date.today()
+    month=st.selectbox("Mes",range(1,13),index=today.month-1,format_func=lambda m:["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"][m-1])
+    year=st.number_input("Año",min_value=2024,max_value=2100,value=today.year,step=1)
+    start=date(int(year),month,1);end=date(int(year)+1,1,1) if month==12 else date(int(year),month+1,1)
+    rows=consultar("SELECT id,cliente,telefono,servicio,precio,fecha,hora,pagada FROM public.citas WHERE fecha >= %s AND fecha < %s ORDER BY fecha DESC,hora DESC",(start,end))
+    paid=sum((Decimal(str(x["precio"])) for x in rows if x["pagada"]),Decimal("0"));due=sum((Decimal(str(x["precio"])) for x in rows if not x["pagada"]),Decimal("0"))
+    a,b,c=st.columns(3);a.metric("Cobrado",euros(paid));b.metric("Pendiente",euros(due));c.metric("Citas",len(rows))
+    st.markdown("### Histórico")
+    for x in rows:
         with st.container(border=True):
-
-            c1, c2, c3 = st.columns([2, 2, 1])
-
-            with c1:
-                st.write(f"**{cita['cliente']}**")
-                st.write(cita["fecha"].strftime("%d/%m/%Y"))
-                st.write(hora_texto(cita["hora"]))
-
-            with c2:
-                st.write(cita["servicio"])
-                st.write(euros(cita["precio"]))
-
-            with c3:
-
-                if cita["pagada"]:
-                    st.success("PAGADA")
-                else:
-                    st.warning("PENDIENTE")
-
-                    if st.button(
-                        "COBRAR",
-                        key=f"cobrar_historico_{cita['id']}"
-                    ):
-
-                        ejecutar("""
-                            UPDATE public.citas
-                            SET pagada = TRUE
-                            WHERE id = %s
-                        """, (cita["id"],))
-
-                        st.rerun()
-
-
-# ============================================================
-# PANEL DE SERVICIOS
-# ============================================================
+            a,b,c=st.columns([2,2,1]);a.write(f"**{x['cliente']}**");a.write(x["fecha"].strftime("%d/%m/%Y")+" · "+hora_texto(x["hora"]))
+            b.write(x["servicio"]);b.write(euros(x["precio"]))
+            if x["pagada"]:c.success("PAGADA")
+            elif c.button("COBRAR",key=f"histpay_{x['id']}"):ejecutar("UPDATE public.citas SET pagada=TRUE WHERE id=%s",(x["id"],));st.rerun()
 
 def panel_servicios():
-
-    st.subheader("Administrar servicios y cortes")
-
-    st.write(
-        "Los servicios activos aparecerán automáticamente "
-        "en la página pública de reservas."
-    )
-
-    with st.expander("➕ Añadir nuevo servicio", expanded=False):
-
-        with st.form("nuevo_servicio"):
-
-            nombre = st.text_input("Nombre del servicio")
-
-            precio = st.number_input(
-                "Precio (€)",
-                min_value=0.0,
-                value=12.0,
-                step=0.5
-            )
-
-            crear = st.form_submit_button(
-                "GUARDAR SERVICIO",
-                use_container_width=True
-            )
-
-        if crear:
-
-            if not nombre.strip():
-                st.error("Escribe el nombre del servicio.")
-
+    st.subheader("Servicios y tarifas")
+    with st.expander("➕ Añadir servicio"):
+        with st.form("add_service"):
+            name=st.text_input("Nombre");price=st.number_input("Precio (€)",min_value=0.0,value=12.0,step=.5)
+            submit=st.form_submit_button("CREAR SERVICIO")
+        if submit:
+            if not name.strip():st.error("Escribe un nombre.")
             else:
-
-                try:
-
-                    ejecutar("""
-                        INSERT INTO public.servicios
-                        (nombre, precio, activo)
-                        VALUES (%s, %s, TRUE)
-                    """, (nombre.strip(), precio))
-
-                    st.success("Servicio añadido correctamente.")
-                    st.rerun()
-
-                except psycopg2.IntegrityError:
-                    st.error("Ya existe un servicio con ese nombre.")
-
-    servicios = obtener_servicios()
-
-    st.markdown("---")
-    st.markdown("### Servicios existentes")
-
-    if not servicios:
-        st.info("Todavía no has creado servicios.")
-        return
-
-    opciones = {
-        f"{s['nombre']} — {euros(s['precio'])}": s["id"]
-        for s in servicios
-    }
-
-    seleccion = st.selectbox(
-        "Selecciona un servicio para modificarlo",
-        list(opciones.keys()),
-        key="editar_servicio_select"
-    )
-
-    servicio = next(
-        s for s in servicios
-        if s["id"] == opciones[seleccion]
-    )
-
-    with st.form("editar_servicio"):
-
-        nombre_nuevo = st.text_input(
-            "Nombre",
-            value=servicio["nombre"]
-        )
-
-        precio_nuevo = st.number_input(
-            "Precio (€)",
-            min_value=0.0,
-            value=float(servicio["precio"]),
-            step=0.5
-        )
-
-        activo_nuevo = st.checkbox(
-            "Servicio visible para los clientes",
-            value=servicio["activo"]
-        )
-
-        guardar = st.form_submit_button(
-            "GUARDAR CAMBIOS",
-            use_container_width=True
-        )
-
-    if guardar:
-
-        try:
-
-            ejecutar("""
-                UPDATE public.servicios
-                SET nombre = %s,
-                    precio = %s,
-                    activo = %s
-                WHERE id = %s
-            """, (
-                nombre_nuevo.strip(),
-                precio_nuevo,
-                activo_nuevo,
-                servicio["id"]
-            ))
-
-            st.success("Servicio actualizado.")
-            st.rerun()
-
-        except psycopg2.IntegrityError:
-            st.error("Ya existe un servicio con ese nombre.")
-
-    st.markdown("---")
-
-    if servicio["activo"]:
-        st.success("Este servicio está publicado.")
-    else:
-        st.warning("Este servicio está desactivado y no aparece en las reservas.")
-
-    if st.button(
-        "🗑️ ELIMINAR SERVICIO",
-        key="eliminar_servicio"
-    ):
-
-        ejecutar("""
-            DELETE FROM public.servicios
-            WHERE id = %s
-        """, (servicio["id"],))
-
-        st.success("Servicio eliminado.")
-        st.rerun()
-
-
-# ============================================================
-# PANEL DE PRODUCTOS
-# ============================================================
+                try:ejecutar("INSERT INTO public.servicios(nombre,precio,activo) VALUES(%s,%s,TRUE)",(name.strip(),price));st.success("Servicio creado.");st.rerun()
+                except psycopg2.IntegrityError:st.error("Ya existe un servicio con ese nombre.")
+    rows=obtener_servicios()
+    if not rows:st.info("No hay servicios.");return
+    mapping={f"{x['nombre']} · {euros(x['precio'])}":x["id"] for x in rows}
+    choice=st.selectbox("Editar servicio",list(mapping),key="service_choice");item=next(x for x in rows if x["id"]==mapping[choice])
+    with st.form("edit_service"):
+        name=st.text_input("Nombre",value=item["nombre"]);price=st.number_input("Precio",min_value=0.0,value=float(item["precio"]),step=.5);active=st.checkbox("Visible en reservas",value=item["activo"]);save=st.form_submit_button("GUARDAR CAMBIOS")
+    if save:
+        try:ejecutar("UPDATE public.servicios SET nombre=%s,precio=%s,activo=%s WHERE id=%s",(name.strip(),price,active,item["id"]));st.success("Actualizado.");st.rerun()
+        except psycopg2.IntegrityError:st.error("Nombre duplicado.")
+    if st.button("🗑️ Eliminar servicio",key="delete_service"):
+        ejecutar("DELETE FROM public.servicios WHERE id=%s",(item["id"],));st.rerun()
 
 def panel_productos():
-
-    st.subheader("Gestión de productos")
-
-    with st.expander("➕ Añadir producto", expanded=False):
-
-        with st.form("nuevo_producto"):
-
-            nombre = st.text_input("Nombre del producto")
-
-            precio = st.number_input(
-                "Precio (€)",
-                min_value=0.0,
-                value=10.0,
-                step=0.5
-            )
-
-            crear = st.form_submit_button(
-                "AÑADIR PRODUCTO",
-                use_container_width=True
-            )
-
-        if crear:
-
-            if not nombre.strip():
-                st.error("Introduce el nombre del producto.")
-
-            else:
-
-                ejecutar("""
-                    INSERT INTO public.productos
-                    (nombre, precio, activo)
-                    VALUES (%s, %s, TRUE)
-                """, (nombre.strip(), precio))
-
-                st.success("Producto añadido.")
-                st.rerun()
-
-    productos = obtener_productos()
-
-    st.markdown("---")
-    st.markdown("### Productos registrados")
-
-    if not productos:
-        st.info("No hay productos registrados.")
-        return
-
-    opciones = {
-        f"{p['nombre']} — {euros(p['precio'])}": p["id"]
-        for p in productos
-    }
-
-    seleccion = st.selectbox(
-        "Selecciona un producto",
-        list(opciones.keys()),
-        key="editar_producto_select"
-    )
-
-    producto = next(
-        p for p in productos
-        if p["id"] == opciones[seleccion]
-    )
-
-    with st.form("editar_producto"):
-
-        nombre_nuevo = st.text_input(
-            "Nombre del producto",
-            value=producto["nombre"]
-        )
-
-        precio_nuevo = st.number_input(
-            "Precio (€)",
-            min_value=0.0,
-            value=float(producto["precio"]),
-            step=0.5
-        )
-
-        activo_nuevo = st.checkbox(
-            "Producto activo",
-            value=producto["activo"]
-        )
-
-        guardar = st.form_submit_button(
-            "GUARDAR CAMBIOS",
-            use_container_width=True
-        )
-
-    if guardar:
-
-        ejecutar("""
-            UPDATE public.productos
-            SET nombre = %s,
-                precio = %s,
-                activo = %s
-            WHERE id = %s
-        """, (
-            nombre_nuevo.strip(),
-            precio_nuevo,
-            activo_nuevo,
-            producto["id"]
-        ))
-
-        st.success("Producto actualizado.")
-        st.rerun()
-
-    if st.button(
-        "🗑️ ELIMINAR PRODUCTO",
-        key="eliminar_producto"
-    ):
-
-        ejecutar("""
-            DELETE FROM public.productos
-            WHERE id = %s
-        """, (producto["id"],))
-
-        st.success("Producto eliminado.")
-        st.rerun()
-
-
-# ============================================================
-# PANEL DE CONFIGURACIÓN DE LA WEB
-# ============================================================
+    st.subheader("Productos")
+    with st.expander("➕ Añadir producto"):
+        with st.form("add_product"):
+            name=st.text_input("Nombre producto");price=st.number_input("Precio (€)",min_value=0.0,value=10.0,step=.5);submit=st.form_submit_button("AÑADIR")
+        if submit:
+            if not name.strip():st.error("Escribe un nombre.")
+            else:ejecutar("INSERT INTO public.productos(nombre,precio,activo) VALUES(%s,%s,TRUE)",(name.strip(),price));st.rerun()
+    rows=obtener_productos()
+    if not rows:st.info("No hay productos.");return
+    mapping={f"{x['nombre']} · {euros(x['precio'])}":x["id"] for x in rows}
+    choice=st.selectbox("Editar producto",list(mapping),key="product_choice");item=next(x for x in rows if x["id"]==mapping[choice])
+    with st.form("edit_product"):
+        name=st.text_input("Nombre",value=item["nombre"]);price=st.number_input("Precio",min_value=0.0,value=float(item["precio"]),step=.5);active=st.checkbox("Producto activo",value=item["activo"]);save=st.form_submit_button("GUARDAR")
+    if save:ejecutar("UPDATE public.productos SET nombre=%s,precio=%s,activo=%s WHERE id=%s",(name.strip(),price,active,item["id"]));st.rerun()
+    if st.button("🗑️ Eliminar producto",key="delete_product"):ejecutar("DELETE FROM public.productos WHERE id=%s",(item["id"],));st.rerun()
 
 def panel_web():
+    st.subheader("Personalización de la web")
+    cfg=obtener_configuracion()
+    with st.form("web_config"):
+        name=st.text_input("Nombre",value=cfg.get("nombre",""));slogan=st.text_input("Eslogan",value=cfg.get("eslogan",""));desc=st.text_area("Descripción",value=cfg.get("descripcion",""));about=st.text_area("Sobre nosotros",value=cfg.get("sobre_nosotros",""))
+        st.markdown("### Imagen e identidad")
+        logo=st.text_input("URL logotipo",value=cfg.get("logo",""));cover=st.text_input("URL portada",value=cfg.get("foto_portada",""));gallery=st.text_area("URLs galería (una por línea)",value=cfg.get("galeria",""))
+        st.markdown("### Contacto")
+        address=st.text_input("Dirección",value=cfg.get("direccion",""));phone=st.text_input("Teléfono",value=cfg.get("telefono",""));wa=st.text_input("WhatsApp internacional",value=cfg.get("whatsapp",""));hours=st.text_area("Horario",value=cfg.get("horario",""))
+        save=st.form_submit_button("GUARDAR CONFIGURACIÓN",use_container_width=True)
+    if save:
+        values={"nombre":name,"eslogan":slogan,"descripcion":desc,"sobre_nosotros":about,"logo":logo,"foto_portada":cover,"galeria":gallery,"direccion":address,"telefono":phone,"whatsapp":wa,"horario":hours}
+        for k,v in values.items():guardar_configuracion(k,v)
+        st.success("Configuración guardada.");st.rerun()
+    if cfg.get("logo","").strip():
+        st.markdown("### Vista previa");st.image(cfg["logo"],width=160)
 
-    st.subheader("Personaliza la página pública")
-
-    st.write(
-        "Desde aquí puedes cambiar la presentación de la peluquería "
-        "sin tener que modificar el código."
-    )
-
-    config = obtener_configuracion()
-
-    with st.form("form_configuracion_web"):
-
-        nombre = st.text_input(
-            "Nombre de la peluquería",
-            value=config.get("nombre", "")
-        )
-
-        eslogan = st.text_input(
-            "Eslogan principal",
-            value=config.get("eslogan", "")
-        )
-
-        descripcion = st.text_area(
-            "Texto de presentación de la portada",
-            value=config.get("descripcion", "")
-        )
-
-        sobre_nosotros = st.text_area(
-            "Sobre nosotros",
-            value=config.get("sobre_nosotros", "")
-        )
-
-        st.markdown("### Identidad visual")
-
-        logo = st.text_input(
-            "URL del logotipo",
-            value=config.get("logo", ""),
-            help="Pega aquí el enlace público de tu logotipo."
-        )
-
-        foto_portada = st.text_input(
-            "URL de la fotografía principal",
-            value=config.get("foto_portada", "")
-        )
-
-        galeria = st.text_area(
-            "Fotografías de la galería",
-            value=config.get("galeria", ""),
-            help="Introduce una URL de imagen por línea."
-        )
-
-        st.markdown("### Datos de contacto")
-
-        direccion = st.text_input(
-            "Dirección",
-            value=config.get("direccion", "")
-        )
-
-        telefono = st.text_input(
-            "Teléfono",
-            value=config.get("telefono", "")
-        )
-
-        whatsapp = st.text_input(
-            "WhatsApp con prefijo internacional",
-            value=config.get("whatsapp", ""),
-            help="Ejemplo: 34600111222"
-        )
-
-        horario = st.text_area(
-            "Horario comercial",
-            value=config.get("horario", "")
-        )
-
-        guardar = st.form_submit_button(
-            "GUARDAR CONFIGURACIÓN DE LA WEB",
-            use_container_width=True
-        )
-
-    if guardar:
-
-        valores = {
-            "nombre": nombre,
-            "eslogan": eslogan,
-            "descripcion": descripcion,
-            "sobre_nosotros": sobre_nosotros,
-            "logo": logo,
-            "foto_portada": foto_portada,
-            "galeria": galeria,
-            "direccion": direccion,
-            "telefono": telefono,
-            "whatsapp": whatsapp,
-            "horario": horario
-        }
-
-        for clave, valor in valores.items():
-            guardar_configuracion(clave, valor)
-
-        st.success("Configuración guardada correctamente.")
-        st.rerun()
-
-    st.markdown("---")
-    st.markdown("### Vista previa del logotipo")
-
-    if config.get("logo", "").strip():
-        st.image(config["logo"], width=180)
-    else:
-        st.info("Todavía no has configurado un logotipo.")
-
-
-# ============================================================
-# EJECUCIÓN PRINCIPAL
-# ============================================================
-
+# ---------------------- MAIN ----------------------
 try:
-
     inicializar_base_datos()
-
-    configuracion = obtener_configuracion()
-
-    mostrar_encabezado(configuracion)
-
-    pagina = st.session_state.pagina
-
-    if pagina == "Inicio":
-        pagina_inicio(configuracion)
-
-    elif pagina == "Servicios":
-        pagina_servicios()
-
-    elif pagina == "Reservar":
-        pagina_reservar()
-
-    elif pagina == "Galería":
-        pagina_galeria(configuracion)
-
-    elif pagina == "Contacto":
-        pagina_contacto(configuracion)
-
-    elif pagina == "Propietario":
-        pagina_propietario()
-
-    mostrar_footer(configuracion)
-
-except Exception as error:
-
+    config=obtener_configuracion()
+    mostrar_encabezado(config)
+    page=st.session_state.pagina
+    if page=="Inicio":pagina_inicio(config)
+    elif page=="Servicios":pagina_servicios()
+    elif page=="Reservar":pagina_reservar()
+    elif page=="Galería":pagina_galeria(config)
+    elif page=="Contacto":pagina_contacto(config)
+    elif page=="Propietario":pagina_propietario()
+    mostrar_footer(config)
+except Exception:
     st.error("No se ha podido cargar la aplicación.")
-    st.error(str(error))
-
-    st.info(
-        "Comprueba la conexión con Supabase y las variables "
-        "de configuración de la aplicación."
-    )
+    st.info("Comprueba la conexión con Supabase y las variables configuradas en Secrets.")
